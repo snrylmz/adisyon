@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PUBLIC_PATHS = ['/login']
+const PUBLIC_PATHS = ['/login', '/m']
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
@@ -21,5 +21,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/|api/|manifest.json|icons/|favicon.ico).*)'],
+  matcher: ['/((?!_next/|api/|manifest.json|icons/|favicon.ico|favicon.png).*)'],
 }

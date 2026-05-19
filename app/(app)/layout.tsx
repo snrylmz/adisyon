@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { getCurrentUser } from '@/lib/auth/session'
 import { logoutAction } from '../(auth)/login/actions'
 import { NavLinks } from './nav'
+import PendingBell from './pending-bell'
 
 const ROLE_LABEL: Record<string, string> = {
   admin: 'Yönetici',
@@ -51,6 +52,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </Link>
             <div className="w-px h-6 bg-zinc-200" />
             <NavLinks items={items} />
+            <PendingBell />
           </div>
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex items-center gap-2">

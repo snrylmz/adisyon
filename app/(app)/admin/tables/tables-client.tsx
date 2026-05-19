@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -306,22 +307,27 @@ function TableTile({
   onEdit: () => void
 }) {
   return (
-    <button
-      onClick={onEdit}
+    <div
       className={cn(
         'group relative bg-white rounded-2xl border border-zinc-200 hover:border-brand-300 hover:shadow-md',
-        'active:scale-95 transition-all min-h-[120px] p-4 text-left flex flex-col justify-between',
+        'transition-all min-h-[120px] p-4 flex flex-col justify-between',
       )}
     >
-      <div className="flex items-start justify-between">
+      <button onClick={onEdit} className="absolute inset-0 w-full h-full" aria-label="Düzenle" />
+      <div className="flex items-start justify-between relative">
         <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-zinc-100 text-zinc-500 text-xs font-bold tabular-nums">
           {index}
         </span>
-        <span className="opacity-0 group-hover:opacity-100 text-zinc-400 text-sm transition">
-          ✎
-        </span>
+        <Link
+          href={`/admin/tables/qr/${table.id}`}
+          onClick={(e) => e.stopPropagation()}
+          className="relative inline-flex items-center justify-center w-7 h-7 rounded-lg bg-zinc-100 hover:bg-brand-100 text-zinc-500 hover:text-brand-700 text-xs font-bold transition"
+          title="QR Kodunu Göster"
+        >
+          ⊞
+        </Link>
       </div>
-      <div>
+      <div className="relative pointer-events-none">
         <div className="font-bold text-zinc-900 text-lg leading-tight tracking-tight">
           {table.name}
         </div>
@@ -329,6 +335,6 @@ function TableTile({
           Sıra · {table.sort_order}
         </div>
       </div>
-    </button>
+    </div>
   )
 }
