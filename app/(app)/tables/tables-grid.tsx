@@ -128,6 +128,31 @@ export default function TablesGrid({
 
       {/* Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        {/* Hızlı Satış prominent CTA */}
+        <Link
+          href="/quick-sale"
+          className="group block mb-5 rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 via-amber-100 to-amber-50 hover:from-amber-100 hover:to-amber-100 hover:border-amber-400 active:scale-[0.99] transition-all shadow-sm"
+        >
+          <div className="flex items-center gap-4 p-4 sm:p-5">
+            <div className="w-14 h-14 rounded-2xl bg-white border border-amber-200 shadow-sm flex items-center justify-center text-3xl shrink-0">
+              📦
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-lg sm:text-xl font-bold tracking-tight text-amber-950">
+                Hızlı Satış / Paket
+              </div>
+              <div className="text-sm text-amber-800/80 mt-0.5">
+                Masa açmadan tezgah / vitrin satışı · Tek dokunuşla başla
+              </div>
+            </div>
+            <div className="hidden sm:flex items-center gap-1 text-amber-700 font-semibold text-sm group-hover:translate-x-0.5 transition-transform">
+              <span>Başlat</span>
+              <span className="text-base leading-none">→</span>
+            </div>
+            <div className="sm:hidden text-amber-700 text-xl">→</div>
+          </div>
+        </Link>
+
         {tables.length === 0 ? (
           <div className="text-center py-20 bg-white border-2 border-dashed border-zinc-200 rounded-2xl">
             <div className="text-5xl mb-4">🪑</div>
