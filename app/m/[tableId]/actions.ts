@@ -1,6 +1,7 @@
 'use server'
 
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { sendPushToAll } from '@/lib/push-server'
 
 type Item = { productId: string; quantity: number; note?: string }
 
@@ -69,6 +70,15 @@ export async function submitPendingOrder(input: {
     .select('id')
     .single()
   if (iErr) return { ok: false, error: iErr.message }
+
+  // Push notification fan-out (best effort, hatayı yutar — sipariş yine kaydedildi)
+  const itemCount = items.reduce((s, i) => s + i.quantity, 0)
+  sendPushToAll({
+    title: '🧁 Yeni sipariş',
+    body: `${(table as any).name} · ${itemCount} ürün`,
+    url: '/pending',
+    tag: 'pending-order',
+  }).catch((e) => console.warn('push fan-out failed:', e))
 
   return { ok: true, pendingId: (inserted as any).id }
 }

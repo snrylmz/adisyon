@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabase/client'
+import { subscribeToPush } from '@/lib/push-client'
 import { cn } from '@/lib/utils'
 
 const BEEP_INTERVAL_MS = 20_000 // daha sık tekrar — gözden kaçırma riski azalsın
@@ -41,52 +42,70 @@ function primeAudio() {
   }
 }
 
-/** Agresif alarm: 6 hızlı bing, alternatif yüksek frekanslar, yüksek volume */
+/**
+ * Kulak yıkan alarm: 10 hızlı burst, çok katmanlı sawtooth+square+sine,
+ * hafif distorsiyon (WaveShaper), yumuşak compressor ile algılanan
+ * yüksekliği maksimize edilmiş. Stereo panning ile dikkat çekiciliği artırıldı.
+ */
 export function playAlarm() {
   const ctx = ensureAudioContext()
   if (!ctx) return
   if (ctx.state === 'suspended') ctx.resume().catch(() => {})
   try {
     const t0 = ctx.currentTime
-    const bursts = 6
-    const burstDur = 0.18
-    const gap = 0.05
+    const bursts = 10
+    const burstDur = 0.16
+    const gap = 0.04
     const step = burstDur + gap
 
-    // Master gain — limiter etkisi için
+    // Compressor — clipping yerine yumuşak limiting, algılanan ses artar
+    const comp = ctx.createDynamicsCompressor()
+    comp.threshold.value = -14
+    comp.knee.value = 8
+    comp.ratio.value = 12
+    comp.attack.value = 0.001
+    comp.release.value = 0.05
+
+    // Hafif distorsiyon — harmonik içerik = "kulak yıkan" his
+    const shaper = ctx.createWaveShaper()
+    const curve = new Float32Array(2048)
+    for (let i = 0; i < 2048; i++) {
+      const x = (i / 2047) * 2 - 1
+      curve[i] = Math.tanh(x * 2.5) // soft saturation
+    }
+    shaper.curve = curve
+
+    // Master — çok yüksek (compressor zaten clipping'i engelliyor)
     const master = ctx.createGain()
-    master.gain.value = 0.85
+    master.gain.value = 1.6
+
+    // Chain: oscillators -> shaper -> comp -> master -> destination
+    shaper.connect(comp)
+    comp.connect(master)
     master.connect(ctx.destination)
 
     for (let i = 0; i < bursts; i++) {
       const start = t0 + i * step
-      // Alternatif tiz frekanslar — siren hissi
-      const freq = i % 2 === 0 ? 1200 : 1700
+      // Alternatif siren frekansları (E5 ve E6 civarı, sert ve net)
+      const freq = i % 2 === 0 ? 1100 : 1650
 
-      // İki katman: square (sert) + sine (gövde)
-      const oSq = ctx.createOscillator()
-      oSq.type = 'square'
-      oSq.frequency.value = freq
-      const gSq = ctx.createGain()
-      gSq.gain.setValueAtTime(0.0001, start)
-      gSq.gain.exponentialRampToValueAtTime(0.45, start + 0.015)
-      gSq.gain.exponentialRampToValueAtTime(0.0001, start + burstDur - 0.01)
-      oSq.connect(gSq)
-      gSq.connect(master)
-      oSq.start(start)
-      oSq.stop(start + burstDur)
+      // 3 katman: sawtooth (zengin harmonik), square (sert), sine (gövde)
+      const types: OscillatorType[] = ['sawtooth', 'square', 'sine']
+      const layerGains = [0.7, 0.6, 0.8]
 
-      const oSi = ctx.createOscillator()
-      oSi.type = 'sine'
-      oSi.frequency.value = freq
-      const gSi = ctx.createGain()
-      gSi.gain.setValueAtTime(0.0001, start)
-      gSi.gain.exponentialRampToValueAtTime(0.55, start + 0.012)
-      gSi.gain.exponentialRampToValueAtTime(0.0001, start + burstDur - 0.005)
-      oSi.connect(gSi)
-      gSi.connect(master)
-      oSi.start(start)
-      oSi.stop(start + burstDur)
+      types.forEach((type, layerIdx) => {
+        const o = ctx.createOscillator()
+        o.type = type
+        o.frequency.value = freq
+        const g = ctx.createGain()
+        g.gain.setValueAtTime(0.0001, start)
+        g.gain.exponentialRampToValueAtTime(layerGains[layerIdx], start + 0.008)
+        g.gain.exponentialRampToValueAtTime(0.0001, start + burstDur - 0.005)
+        o.connect(g)
+        g.connect(shaper)
+        o.start(start)
+        o.stop(start + burstDur)
+      })
     }
   } catch (e) {
     console.warn('playAlarm failed:', e)
@@ -230,13 +249,14 @@ export default function PendingBell() {
   function requestNotif() {
     if (typeof Notification === 'undefined') return
     Notification.requestPermission()
-      .then((p) => {
+      .then(async (p) => {
         setNotifPerm(p)
         if (p === 'granted') {
-          // Tek seferlik onay bildirimi
+          // İzin verildi: push subscription'a hemen kaydol
+          await subscribeToPush()
           try {
             new Notification('Bildirimler açıldı', {
-              body: 'Yeni sipariş geldiğinde uyarı alacaksınız',
+              body: 'Yeni sipariş geldiğinde uygulama kapalı olsa bile uyarı alacaksınız',
               icon: '/icons/icon-192.png',
             })
           } catch {}
