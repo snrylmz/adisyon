@@ -178,8 +178,8 @@ const TableCard = memo(function TableCard({ table }: { table: TableWithOrder }) 
         </div>
         <div
           className={cn(
-            'w-2.5 h-2.5 rounded-full',
-            occupied ? 'bg-red-500 ring-4 ring-red-200' : 'bg-emerald-400 ring-4 ring-emerald-100',
+            'w-3 h-3 rounded-full',
+            occupied ? 'bg-red-500' : 'bg-emerald-500',
           )}
         />
       </div>
