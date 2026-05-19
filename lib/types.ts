@@ -34,16 +34,28 @@ export type Table = {
 }
 
 export type OrderStatus = 'open' | 'closed' | 'cancelled'
+export type PaymentType = 'cash' | 'card' | 'transfer' | 'other'
 
 export type Order = {
   id: string
-  table_id: string
+  table_id: string | null  // null = paket / hızlı satış
   status: OrderStatus
   opened_at: string
   closed_at: string | null
   opened_by: string | null
   closed_by: string | null
+  subtotal: number
+  discount: number
+  discount_reason: string | null
   total: number
+  payment_type: PaymentType | null
+}
+
+export const PAYMENT_LABELS: Record<PaymentType, string> = {
+  cash: 'Nakit',
+  card: 'Kart',
+  transfer: 'Havale',
+  other: 'Diğer',
 }
 
 export type OrderItem = {

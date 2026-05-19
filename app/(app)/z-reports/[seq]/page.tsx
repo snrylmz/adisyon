@@ -88,6 +88,43 @@ export default async function ZReportDetailPage({
           </div>
         )}
 
+        {z.payments_by_type && z.payments_by_type.length > 0 && (
+          <div className="p-6 border-b border-zinc-200">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-zinc-500 mb-4">
+              Ödeme Dağılımı
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {z.payments_by_type.map((p) => {
+                const icon =
+                  p.type === 'cash'
+                    ? '💵'
+                    : p.type === 'card'
+                      ? '💳'
+                      : p.type === 'transfer'
+                        ? '🏦'
+                        : '•'
+                return (
+                  <div
+                    key={p.type}
+                    className="rounded-xl bg-zinc-50 border border-zinc-200 px-3 py-2.5"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-base">{icon}</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-600">
+                        {p.label}
+                      </span>
+                    </div>
+                    <div className="text-base font-bold tabular-nums text-zinc-900 mt-0.5">
+                      {formatTRY(p.revenue)}
+                    </div>
+                    <div className="text-[10px] text-zinc-500">{p.count} adisyon</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Top products */}
         <div className="p-6 border-b border-zinc-200">
           <h2 className="text-sm font-bold uppercase tracking-wide text-zinc-500 mb-4">

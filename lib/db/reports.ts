@@ -21,6 +21,10 @@ export type ReportSummary = {
   hourly: { hour: number; revenue: number; count: number }[]
   waiterSales: { id: string | null; name: string; revenue: number; orderCount: number }[]
   categoryShare: { name: string; revenue: number }[]
+  paymentsByType: { type: string; label: string; revenue: number; count: number }[]
+  discountTotal: number
+  takeawayCount: number
+  takeawayRevenue: number
   orders: ReportOrder[]
 }
 
@@ -78,8 +82,12 @@ export async function buildReport(range: DateRange): Promise<ReportSummary> {
     closed_at: o.closed_at,
     opened_by: o.opened_by,
     closed_by: o.closed_by,
+    subtotal: Number(o.subtotal ?? 0),
+    discount: Number(o.discount ?? 0),
+    discount_reason: o.discount_reason ?? null,
+    payment_type: o.payment_type ?? null,
     total: Number(o.total),
-    table_name: dir.tablesById.get(o.table_id) ?? null,
+    table_name: o.table_id ? dir.tablesById.get(o.table_id) ?? null : null,
     opened_by_name: o.opened_by ? dir.profilesById.get(o.opened_by)?.name ?? null : null,
     closed_by_name: o.closed_by ? dir.profilesById.get(o.closed_by)?.name ?? null : null,
     items: ((o.order_items ?? []) as any[]).map((it) => ({
@@ -99,6 +107,39 @@ export async function buildReport(range: DateRange): Promise<ReportSummary> {
     (s, o) => s + o.items.reduce((ss, i) => ss + i.quantity, 0),
     0,
   )
+
+  // Ödeme tipi kırılımı (sadece closed)
+  const PAYMENT_LABELS: Record<string, string> = {
+    cash: 'Nakit',
+    card: 'Kart',
+    transfer: 'Havale',
+    other: 'Diğer',
+    null: 'Belirsiz',
+  }
+  const payAgg = new Map<string, { type: string; label: string; revenue: number; count: number }>()
+  for (const o of closedOrders) {
+    const key = (o as any).payment_type ?? 'null'
+    const cur = payAgg.get(key) ?? {
+      type: key,
+      label: PAYMENT_LABELS[key] ?? key,
+      revenue: 0,
+      count: 0,
+    }
+    cur.revenue += o.total
+    cur.count += 1
+    payAgg.set(key, cur)
+  }
+
+  // İskonto toplamı (sadece closed)
+  const discountTotal = closedOrders.reduce(
+    (s, o) => s + Number((o as any).discount ?? 0),
+    0,
+  )
+
+  // Paket / takeaway kırılımı (table_id null)
+  const takeawayOrders = closedOrders.filter((o) => !o.table_id)
+  const takeawayCount = takeawayOrders.length
+  const takeawayRevenue = takeawayOrders.reduce((s, o) => s + o.total, 0)
 
   // Top products
   const productAgg = new Map<string, { name: string; quantity: number; revenue: number }>()
@@ -157,6 +198,10 @@ export async function buildReport(range: DateRange): Promise<ReportSummary> {
     hourly: Array.from(hourlyAgg.values()),
     waiterSales: Array.from(waiterAgg.values()).sort((a, b) => b.revenue - a.revenue),
     categoryShare: Array.from(categoryAgg.values()).sort((a, b) => b.revenue - a.revenue),
+    paymentsByType: Array.from(payAgg.values()).sort((a, b) => b.revenue - a.revenue),
+    discountTotal,
+    takeawayCount,
+    takeawayRevenue,
     orders,
   }
 }

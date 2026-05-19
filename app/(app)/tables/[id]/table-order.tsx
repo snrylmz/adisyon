@@ -5,7 +5,16 @@ import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useSta
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { cn, formatTRY, formatTime } from '@/lib/utils'
 import { Modal } from '@/components/ui/modal'
-import type { Category, Order, OrderItem, Product, Role, Table, TableWithOrder } from '@/lib/types'
+import type {
+  Category,
+  Order,
+  OrderItem,
+  PaymentType,
+  Product,
+  Role,
+  Table,
+  TableWithOrder,
+} from '@/lib/types'
 import {
   addOrderItem,
   cancelOrder,
@@ -202,10 +211,10 @@ export default function TableOrder({
       removeOrderItem({ tableId: table.id, itemId: id }).catch(() => {})
     })
   }
-  function doClose() {
+  function doClose(paymentType: PaymentType) {
     if (!order) return
     startTransition(async () => {
-      await closeOrder({ tableId: table.id, orderId: order.id })
+      await closeOrder({ tableId: table.id, orderId: order.id, paymentType })
       setClosing(false)
     })
   }
@@ -337,24 +346,33 @@ export default function TableOrder({
                   Hesabı Kapat
                 </button>
               ) : (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 space-y-2">
-                  <p className="text-sm font-medium text-emerald-900 text-center">
-                    Bu adisyonu kapatmayı onaylıyor musun?
+                <div className="bg-white border border-zinc-200 rounded-2xl p-3 space-y-2">
+                  <p className="text-xs text-center font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                    Ödeme tipi
                   </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => setClosing(false)}
-                      className="h-12 bg-white border border-zinc-200 hover:bg-zinc-50 font-semibold rounded-xl"
-                    >
-                      Vazgeç
-                    </button>
-                    <button
-                      onClick={doClose}
-                      className="h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shadow-sm"
-                    >
-                      Onayla ✓
-                    </button>
+                  <div className="grid grid-cols-3 gap-2">
+                    <PaymentBtn
+                      icon="💵"
+                      label="Nakit"
+                      onClick={() => doClose('cash')}
+                    />
+                    <PaymentBtn
+                      icon="💳"
+                      label="Kart"
+                      onClick={() => doClose('card')}
+                    />
+                    <PaymentBtn
+                      icon="🏦"
+                      label="Havale"
+                      onClick={() => doClose('transfer')}
+                    />
                   </div>
+                  <button
+                    onClick={() => setClosing(false)}
+                    className="w-full h-9 text-xs text-zinc-500 hover:text-zinc-700"
+                  >
+                    Vazgeç
+                  </button>
                 </div>
               )}
               {(role === 'admin' || role === 'cashier') && !closing && (
@@ -781,6 +799,26 @@ const OrderItemRow = memo(
     a.onDec === b.onDec &&
     a.onRemove === b.onRemove,
 )
+
+function PaymentBtn({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: string
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center justify-center gap-1 h-20 bg-zinc-50 hover:bg-emerald-50 hover:border-emerald-300 active:scale-95 border border-zinc-200 rounded-xl text-zinc-800 font-semibold transition"
+    >
+      <span className="text-2xl leading-none">{icon}</span>
+      <span className="text-xs">{label}</span>
+    </button>
+  )
+}
 
 function CatPill({
   active,

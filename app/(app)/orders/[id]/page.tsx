@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth/session'
 import { getClosedOrderDetail } from '@/lib/db/reports'
 import { formatDateTimeTR } from '@/lib/dates'
 import { formatTRY } from '@/lib/utils'
+import { PAYMENT_LABELS } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,6 +64,18 @@ export default async function OrderDetailPage({
             <Meta label="Açan" value={order.opened_by_name ?? '—'} />
             <Meta label="Kapatan" value={order.closed_by_name ?? '—'} />
           </div>
+          {(order as any).payment_type && !cancelled && (
+            <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-zinc-100 text-zinc-700">
+              {(order as any).payment_type === 'cash'
+                ? '💵'
+                : (order as any).payment_type === 'card'
+                  ? '💳'
+                  : (order as any).payment_type === 'transfer'
+                    ? '🏦'
+                    : '•'}{' '}
+              {PAYMENT_LABELS[(order as any).payment_type as keyof typeof PAYMENT_LABELS]}
+            </div>
+          )}
         </div>
 
         {/* Items */}

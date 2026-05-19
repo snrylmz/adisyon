@@ -95,9 +95,17 @@ export async function removeOrderItem(input: { tableId: string; itemId: string }
   revalidatePath('/tables')
 }
 
-export async function closeOrder(input: { tableId: string; orderId: string }) {
+export async function closeOrder(input: {
+  tableId: string
+  orderId: string
+  paymentType: 'cash' | 'card' | 'transfer' | 'other'
+}) {
   const user = await requireUser()
   const sb = supabaseAdmin()
+
+  if (!['cash', 'card', 'transfer', 'other'].includes(input.paymentType)) {
+    throw new Error('Geçersiz ödeme tipi')
+  }
 
   const { data: order, error: gErr } = await sb
     .from('orders')
@@ -110,7 +118,12 @@ export async function closeOrder(input: { tableId: string; orderId: string }) {
 
   const { error } = await sb
     .from('orders')
-    .update({ status: 'closed', closed_at: new Date().toISOString(), closed_by: user.id })
+    .update({
+      status: 'closed',
+      closed_at: new Date().toISOString(),
+      closed_by: user.id,
+      payment_type: input.paymentType,
+    })
     .eq('id', input.orderId)
   if (error) throw error
 

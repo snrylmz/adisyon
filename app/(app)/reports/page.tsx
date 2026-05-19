@@ -130,6 +130,47 @@ export default async function ReportsPage({
           </section>
         </div>
 
+        {/* Payment breakdown */}
+        {report.paymentsByType.length > 0 && (
+          <section className="bg-white rounded-2xl border border-zinc-200 p-5">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-zinc-500 mb-4">
+              Ödeme Dağılımı
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {report.paymentsByType.map((p) => {
+                const icon =
+                  p.type === 'cash'
+                    ? '💵'
+                    : p.type === 'card'
+                      ? '💳'
+                      : p.type === 'transfer'
+                        ? '🏦'
+                        : '•'
+                const share = report.revenue > 0 ? (p.revenue / report.revenue) * 100 : 0
+                return (
+                  <div
+                    key={p.type}
+                    className="rounded-xl border border-zinc-200 px-4 py-3 bg-gradient-to-br from-zinc-50 to-white"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-lg">{icon}</span>
+                      <span className="text-xs font-bold uppercase tracking-wider text-zinc-600">
+                        {p.label}
+                      </span>
+                    </div>
+                    <div className="text-xl font-bold tabular-nums text-zinc-900">
+                      {formatTRY(p.revenue)}
+                    </div>
+                    <div className="text-xs text-zinc-500 mt-0.5">
+                      {p.count} adisyon · %{share.toFixed(0)}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
         {/* Bottom row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Top products */}

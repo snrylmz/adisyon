@@ -18,6 +18,12 @@ export type ZReportRow = {
   waiter_sales: { id: string | null; name: string; revenue: number; orderCount: number }[] | null
   category_share: { name: string; revenue: number }[] | null
   hourly: { hour: number; revenue: number; count: number }[] | null
+  payments_by_type:
+    | { type: string; label: string; revenue: number; count: number }[]
+    | null
+  discount_total: number
+  takeaway_count: number
+  takeaway_revenue: number
   created_at: string
   closed_by_name?: string | null
 }
@@ -49,6 +55,8 @@ export async function listZReports(opts: { limit?: number } = {}): Promise<ZRepo
     revenue: Number(r.revenue),
     cancelled_amount: Number(r.cancelled_amount),
     avg_ticket: Number(r.avg_ticket),
+    discount_total: Number(r.discount_total ?? 0),
+    takeaway_revenue: Number(r.takeaway_revenue ?? 0),
     closed_by_name: r.closed_by ? profileMap.get(r.closed_by) ?? null : null,
   }))
 }
@@ -73,6 +81,8 @@ export async function getZReportBySequence(seq: number): Promise<ZReportRow | nu
     revenue: Number(row.revenue),
     cancelled_amount: Number(row.cancelled_amount),
     avg_ticket: Number(row.avg_ticket),
+    discount_total: Number(row.discount_total ?? 0),
+    takeaway_revenue: Number(row.takeaway_revenue ?? 0),
     closed_by_name,
   }
 }
@@ -143,6 +153,10 @@ export async function createZReport(closedBy: string): Promise<ZReportRow> {
       waiter_sales: report.waiterSales,
       category_share: report.categoryShare,
       hourly: report.hourly,
+      payments_by_type: report.paymentsByType,
+      discount_total: report.discountTotal,
+      takeaway_count: report.takeawayCount,
+      takeaway_revenue: report.takeawayRevenue,
     })
     .select('*')
     .single()
