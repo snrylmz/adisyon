@@ -27,6 +27,7 @@ export default function QuickSaleClient({ categories, products }: Props) {
     note: string
   } | null>(null)
   const [paymentOpen, setPaymentOpen] = useState(false)
+  const [pendingPayment, setPendingPayment] = useState<PaymentType | null>(null)
   const [, startTransition] = useTransition()
   const [busy, setBusy] = useState(false)
 
@@ -106,6 +107,12 @@ export default function QuickSaleClient({ categories, products }: Props) {
         setBusy(false)
       }
     })
+  }
+
+  function closePaymentModal() {
+    if (busy) return
+    setPaymentOpen(false)
+    setPendingPayment(null)
   }
 
   return (
@@ -320,30 +327,84 @@ export default function QuickSaleClient({ categories, products }: Props) {
       {/* Payment modal */}
       <Modal
         open={paymentOpen}
-        onClose={() => !busy && setPaymentOpen(false)}
-        title="Ödeme tipi"
-        description={formatTRY(total) + ' tahsil edilecek'}
+        onClose={closePaymentModal}
+        title={pendingPayment ? 'Onayla' : 'Ödeme tipi'}
+        description={
+          pendingPayment ? undefined : formatTRY(total) + ' tahsil edilecek'
+        }
         size="sm"
       >
-        <div className="space-y-3">
-          <div className="grid grid-cols-3 gap-2">
-            <PaymentBtn icon="💵" label="Nakit" onClick={() => checkout('cash')} disabled={busy} />
-            <PaymentBtn icon="💳" label="Kart" onClick={() => checkout('card')} disabled={busy} />
-            <PaymentBtn
-              icon="🏦"
-              label="Havale"
-              onClick={() => checkout('transfer')}
-              disabled={busy}
-            />
+        {pendingPayment ? (
+          /* ONAY ADIMI */
+          <div className="space-y-4">
+            <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 text-center space-y-1">
+              <p className="text-[10px] uppercase tracking-wider font-bold text-emerald-700">
+                Tahsil edilecek
+              </p>
+              <div className="text-3xl font-bold tabular-nums text-emerald-950">
+                {formatTRY(total)}
+              </div>
+              <p className="text-sm font-semibold text-emerald-800">
+                {pendingPayment === 'cash'
+                  ? '💵 Nakit'
+                  : pendingPayment === 'card'
+                    ? '💳 Kart'
+                    : pendingPayment === 'transfer'
+                      ? '🏦 Havale'
+                      : '• Diğer'}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingPayment(null)}
+                disabled={busy}
+                className="h-12 bg-white border border-zinc-300 hover:bg-zinc-50 rounded-xl font-semibold text-zinc-700"
+              >
+                Geri
+              </button>
+              <button
+                type="button"
+                onClick={() => checkout(pendingPayment)}
+                disabled={busy}
+                className="h-12 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:bg-zinc-300 text-white font-semibold rounded-xl shadow-md shadow-emerald-600/20"
+              >
+                {busy ? 'Tahsil ediliyor...' : 'Onayla ✓'}
+              </button>
+            </div>
           </div>
-          <button
-            onClick={() => setPaymentOpen(false)}
-            disabled={busy}
-            className="w-full h-10 text-xs text-zinc-500 hover:text-zinc-700"
-          >
-            {busy ? 'Tahsil ediliyor...' : 'Vazgeç'}
-          </button>
-        </div>
+        ) : (
+          /* ÖDEME TİPİ SEÇİMİ */
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-2">
+              <PaymentBtn
+                icon="💵"
+                label="Nakit"
+                onClick={() => setPendingPayment('cash')}
+                disabled={busy}
+              />
+              <PaymentBtn
+                icon="💳"
+                label="Kart"
+                onClick={() => setPendingPayment('card')}
+                disabled={busy}
+              />
+              <PaymentBtn
+                icon="🏦"
+                label="Havale"
+                onClick={() => setPendingPayment('transfer')}
+                disabled={busy}
+              />
+            </div>
+            <button
+              onClick={closePaymentModal}
+              disabled={busy}
+              className="w-full h-10 text-xs text-zinc-500 hover:text-zinc-700"
+            >
+              Vazgeç
+            </button>
+          </div>
+        )}
       </Modal>
     </div>
   )

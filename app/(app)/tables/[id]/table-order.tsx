@@ -48,6 +48,7 @@ export default function TableOrder({
   const [search, setSearch] = useState('')
   const [, startTransition] = useTransition()
   const [closing, setClosing] = useState(false)
+  const [pendingPayment, setPendingPayment] = useState<PaymentType | null>(null)
   const [flashId, setFlashId] = useState<string | null>(null)
   const [moveOpen, setMoveOpen] = useState(false)
   const [moveError, setMoveError] = useState<string | null>(null)
@@ -272,6 +273,7 @@ export default function TableOrder({
     startTransition(async () => {
       await closeOrder({ tableId: table.id, orderId: order.id, paymentType })
       setClosing(false)
+      setPendingPayment(null)
     })
   }
   function confirmCancel() {
@@ -428,7 +430,44 @@ export default function TableOrder({
                 >
                   Hesabı Kapat
                 </button>
+              ) : pendingPayment ? (
+                /* ONAY ADIMI: ödeme tipi seçildi, son kontrol */
+                <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 space-y-3">
+                  <div className="text-center space-y-1">
+                    <p className="text-[10px] uppercase tracking-wider font-bold text-emerald-700">
+                      Onayla
+                    </p>
+                    <div className="text-2xl font-bold tabular-nums text-emerald-950">
+                      {formatTRY(total)}
+                    </div>
+                    <p className="text-sm font-semibold text-emerald-800">
+                      {pendingPayment === 'cash'
+                        ? '💵 Nakit'
+                        : pendingPayment === 'card'
+                          ? '💳 Kart'
+                          : pendingPayment === 'transfer'
+                            ? '🏦 Havale'
+                            : '• Diğer'}{' '}
+                      ile kapatılacak
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setPendingPayment(null)}
+                      className="h-12 bg-white border border-zinc-300 hover:bg-zinc-50 active:scale-95 font-semibold rounded-xl text-zinc-700 transition"
+                    >
+                      Geri
+                    </button>
+                    <button
+                      onClick={() => doClose(pendingPayment)}
+                      className="h-12 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 active:scale-95 text-white font-semibold rounded-xl shadow-md shadow-emerald-600/20 transition"
+                    >
+                      Onayla ✓
+                    </button>
+                  </div>
+                </div>
               ) : (
+                /* ÖDEME TİPİ SEÇME */
                 <div className="bg-white border border-zinc-200 rounded-2xl p-3 space-y-2">
                   <p className="text-xs text-center font-bold uppercase tracking-wider text-zinc-500 mb-1">
                     Ödeme tipi
@@ -437,17 +476,17 @@ export default function TableOrder({
                     <PaymentBtn
                       icon="💵"
                       label="Nakit"
-                      onClick={() => doClose('cash')}
+                      onClick={() => setPendingPayment('cash')}
                     />
                     <PaymentBtn
                       icon="💳"
                       label="Kart"
-                      onClick={() => doClose('card')}
+                      onClick={() => setPendingPayment('card')}
                     />
                     <PaymentBtn
                       icon="🏦"
                       label="Havale"
-                      onClick={() => doClose('transfer')}
+                      onClick={() => setPendingPayment('transfer')}
                     />
                   </div>
                   <button
