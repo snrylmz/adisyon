@@ -116,6 +116,7 @@ export async function closeOrder(input: { tableId: string; orderId: string }) {
 
   revalidatePath(`/tables/${input.tableId}`)
   revalidatePath('/tables')
+  redirect('/tables')
 }
 
 export async function moveOrderToTable(input: { orderId: string; targetTableId: string }) {
@@ -180,4 +181,5 @@ export async function cancelOrder(input: { tableId: string; orderId: string }) {
   if (error) throw error
   revalidatePath(`/tables/${input.tableId}`)
   revalidatePath('/tables')
+  redirect('/tables')
 }
