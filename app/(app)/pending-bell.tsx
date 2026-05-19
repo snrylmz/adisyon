@@ -140,7 +140,6 @@ function showOrderNotification(count: number) {
 
 export default function PendingBell() {
   const [count, setCount] = useState(0)
-  const [audioBlocked, setAudioBlocked] = useState(false)
   const [notifPerm, setNotifPerm] = useState<NotificationPermission | 'unsupported'>('default')
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prevCountRef = useRef(0)
@@ -155,18 +154,11 @@ export default function PendingBell() {
     setNotifPerm(Notification.permission)
   }, [])
 
-  // Audio prime — ilk dokunmada açılır
+  // Audio prime — ilk dokunmada açılır (UI'da göstergesi yok, sessizce çalışır)
   useEffect(() => {
     function onInteraction() {
       primeAudio()
-      const ctx = ensureAudioContext()
-      if (ctx && ctx.state === 'running') {
-        setAudioBlocked(false)
-      }
     }
-    const ctx = ensureAudioContext()
-    setAudioBlocked(!!ctx && ctx.state !== 'running')
-
     document.addEventListener('click', onInteraction, true)
     document.addEventListener('touchstart', onInteraction, true)
     document.addEventListener('keydown', onInteraction, true)
@@ -239,13 +231,6 @@ export default function PendingBell() {
     }
   }, [count])
 
-  function testSound() {
-    primeAudio()
-    playAlarm()
-    const ctx = ensureAudioContext()
-    setAudioBlocked(!!ctx && ctx.state !== 'running')
-  }
-
   function requestNotif() {
     if (typeof Notification === 'undefined') return
     Notification.requestPermission()
@@ -265,26 +250,6 @@ export default function PendingBell() {
       .catch(() => {})
   }
 
-  async function testPush() {
-    try {
-      // Önce subscription'ı tazele (idempotent)
-      await subscribeToPush()
-      const res = await fetch('/api/push/test', { method: 'POST' })
-      const data = await res.json()
-      if (data.ok) {
-        alert(`✓ Test push ${data.sentTo} cihaza gönderildi.\n\nPWA'yı kapat (multitasking → swipe up) ve 5 sn bekle. Bildirim gelmezse Notification izni iOS Ayarlar'dan kapatılmış olabilir.`)
-      } else if (data.reason === 'vapid-missing') {
-        alert('❌ VAPID env değişkenleri server\'da yok:\n' + JSON.stringify(data.detail, null, 2))
-      } else if (data.reason === 'no-subscriptions') {
-        alert('❌ Bu kullanıcı için push subscription yok.\n\nMuhtemelen:\n• Notification izni verilmemiş\n• PWA Service Worker kayıtlı değil\n• subscribeToPush() hata aldı (Console\'a bak)')
-      } else {
-        alert('❌ Beklenmedik durum: ' + JSON.stringify(data))
-      }
-    } catch (e: any) {
-      alert('❌ Test push hata: ' + (e?.message ?? e))
-    }
-  }
-
   return (
     <div className="flex items-center gap-1">
       {/* Notification permission request — sadece henüz sorulmadıysa */}
@@ -297,33 +262,6 @@ export default function PendingBell() {
           🔔 İzin
         </button>
       )}
-
-      {/* Audio test / status */}
-      <button
-        onClick={testSound}
-        title={
-          audioBlocked
-            ? 'Bildirim sesi kilitli — açmak için dokun'
-            : 'Bildirim sesini test et'
-        }
-        className={cn(
-          'px-2 py-1.5 rounded-lg text-xs',
-          audioBlocked
-            ? 'font-semibold bg-amber-100 text-amber-800 hover:bg-amber-200'
-            : 'text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100',
-        )}
-      >
-        {audioBlocked ? '🔇 Ses' : '🔊'}
-      </button>
-
-      {/* Push test */}
-      <button
-        onClick={testPush}
-        title="Bu cihaza test push gönder"
-        className="px-2 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100"
-      >
-        📡
-      </button>
 
       {count === 0 ? (
         <Link
