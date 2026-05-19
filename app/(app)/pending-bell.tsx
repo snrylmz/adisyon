@@ -265,6 +265,26 @@ export default function PendingBell() {
       .catch(() => {})
   }
 
+  async function testPush() {
+    try {
+      // Önce subscription'ı tazele (idempotent)
+      await subscribeToPush()
+      const res = await fetch('/api/push/test', { method: 'POST' })
+      const data = await res.json()
+      if (data.ok) {
+        alert(`✓ Test push ${data.sentTo} cihaza gönderildi.\n\nPWA'yı kapat (multitasking → swipe up) ve 5 sn bekle. Bildirim gelmezse Notification izni iOS Ayarlar'dan kapatılmış olabilir.`)
+      } else if (data.reason === 'vapid-missing') {
+        alert('❌ VAPID env değişkenleri server\'da yok:\n' + JSON.stringify(data.detail, null, 2))
+      } else if (data.reason === 'no-subscriptions') {
+        alert('❌ Bu kullanıcı için push subscription yok.\n\nMuhtemelen:\n• Notification izni verilmemiş\n• PWA Service Worker kayıtlı değil\n• subscribeToPush() hata aldı (Console\'a bak)')
+      } else {
+        alert('❌ Beklenmedik durum: ' + JSON.stringify(data))
+      }
+    } catch (e: any) {
+      alert('❌ Test push hata: ' + (e?.message ?? e))
+    }
+  }
+
   return (
     <div className="flex items-center gap-1">
       {/* Notification permission request — sadece henüz sorulmadıysa */}
@@ -294,6 +314,15 @@ export default function PendingBell() {
         )}
       >
         {audioBlocked ? '🔇 Ses' : '🔊'}
+      </button>
+
+      {/* Push test */}
+      <button
+        onClick={testPush}
+        title="Bu cihaza test push gönder"
+        className="px-2 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100"
+      >
+        📡
       </button>
 
       {count === 0 ? (
