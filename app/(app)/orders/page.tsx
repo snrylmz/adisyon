@@ -85,7 +85,13 @@ export default async function OrdersPage({
                       </div>
                     </div>
                     <div className="md:col-span-2 text-sm font-semibold text-zinc-700">
-                      {o.table_name}
+                      {o.is_takeaway ? (
+                        <span className="inline-flex items-center gap-1">
+                          <span>📦</span> Paket
+                        </span>
+                      ) : (
+                        o.table_name ?? '—'
+                      )}
                     </div>
                     <div className="md:col-span-2 text-sm text-zinc-500 md:text-right tabular-nums">
                       {o.item_count} adet

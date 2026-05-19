@@ -21,6 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const items = [
     { href: '/tables', label: 'Masalar' },
+    { href: '/quick-sale', label: 'Hızlı Satış' },
     ...(user.role === 'admin' || user.role === 'cashier'
       ? [
           { href: '/reports', label: 'Rapor' },

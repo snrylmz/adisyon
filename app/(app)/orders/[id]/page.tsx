@@ -40,7 +40,13 @@ export default async function OrderDetailPage({
                 Adisyon
               </div>
               <h1 className="text-3xl font-bold tracking-tight text-zinc-900 mt-1">
-                {order.table_name}
+                {!order.table_id ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span>📦</span> Paket Satış
+                  </span>
+                ) : (
+                  order.table_name
+                )}
               </h1>
               <div className="text-sm text-zinc-500 mt-1">
                 {formatDateTimeTR(order.closed_at)}

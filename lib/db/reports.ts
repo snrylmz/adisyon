@@ -235,12 +235,14 @@ export async function listClosedOrders(opts: {
   const dir = await loadDirectory()
   const items = (data ?? []).map((o: any) => ({
     id: o.id as string,
-    table_id: o.table_id as string,
-    table_name: dir.tablesById.get(o.table_id) ?? '—',
+    table_id: (o.table_id ?? null) as string | null,
+    table_name: o.table_id ? dir.tablesById.get(o.table_id) ?? '—' : null,
+    is_takeaway: !o.table_id,
     status: o.status as string,
     opened_at: o.opened_at as string,
     closed_at: o.closed_at as string,
     total: Number(o.total),
+    payment_type: (o.payment_type ?? null) as string | null,
     item_count: (o.order_items ?? []).reduce((s: number, i: any) => s + i.quantity, 0),
     closed_by_name: o.closed_by ? dir.profilesById.get(o.closed_by)?.name ?? null : null,
     opened_by_name: o.opened_by ? dir.profilesById.get(o.opened_by)?.name ?? null : null,
