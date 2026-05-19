@@ -5,6 +5,7 @@ import { logoutAction } from '../(auth)/login/actions'
 import { AdminMenu, NavLinks } from './nav'
 import PendingBell from './pending-bell'
 import PushInit from './push-init'
+import WakeLockButton from './wake-lock'
 
 const ROLE_LABEL: Record<string, string> = {
   admin: 'Yön.',
@@ -58,6 +59,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             {adminItems.length > 0 && <AdminMenu items={adminItems} />}
           </div>
           <div className="flex items-center gap-1 shrink-0">
+            <WakeLockButton />
             <PendingBell />
             <div className="hidden lg:flex items-center gap-1.5 px-2">
               <span
