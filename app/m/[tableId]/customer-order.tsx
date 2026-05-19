@@ -434,37 +434,24 @@ export default function CustomerOrder({ table, categories, products }: Props) {
         <div className="text-center py-4 space-y-4">
           {pendingStatus === 'pending' && (
             <>
-              <div className="relative w-24 h-24 mx-auto">
-                <svg className="w-full h-full" viewBox="0 0 100 100">
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="45"
-                    fill="none"
-                    stroke="#fce7f3"
-                    strokeWidth="6"
-                  />
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="45"
-                    fill="none"
-                    stroke="#ec4899"
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                    strokeDasharray={`${(secondsLeft / 300) * 283} 283`}
-                    transform="rotate(-90 50 50)"
-                    style={{ transition: 'stroke-dasharray 1s linear' }}
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center text-2xl font-bold tabular-nums text-brand-700">
-                  {Math.floor(secondsLeft / 60)}:
-                  {String(secondsLeft % 60).padStart(2, '0')}
+              <div className="flex justify-center">
+                <div className="relative w-16 h-16">
+                  <div className="absolute inset-0 rounded-full border-4 border-brand-100" />
+                  <div className="absolute inset-0 rounded-full border-4 border-brand-600 border-t-transparent animate-spin" />
                 </div>
               </div>
-              <p className="text-sm text-zinc-600">
-                Garson sipariş talebinizi onayladığında masanıza işlenecek. Lütfen bekleyin.
+              <p className="text-sm text-zinc-700 font-medium">
+                Garson siparişinizi onayladığında masanıza işlenecek.
               </p>
+              <p className="text-xs text-zinc-500">
+                Lütfen bekleyin · İstediğinizde menüye dönüp yeni sipariş ekleyebilirsiniz
+              </p>
+              <button
+                onClick={dismissStatus}
+                className="text-sm text-brand-600 hover:text-brand-700 font-semibold underline"
+              >
+                Menüye dön
+              </button>
             </>
           )}
           {pendingStatus === 'approved' && (
