@@ -234,7 +234,7 @@ export default function QuickSaleClient({ categories, products }: Props) {
               {search ? <>&ldquo;{search}&rdquo; için sonuç yok</> : <>Bu kategoride ürün yok.</>}
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-2 gap-2.5">
               {visibleProducts.map((p) => (
                 <ProductCard key={p.id} product={p} onPick={openAdd} />
               ))}

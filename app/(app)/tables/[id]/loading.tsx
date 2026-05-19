@@ -20,7 +20,7 @@ export default function Loading() {
             <div key={i} className="h-10 w-24 bg-zinc-100 rounded-full animate-pulse" />
           ))}
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+        <div className="grid grid-cols-2 gap-2.5">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="h-28 bg-white rounded-2xl animate-pulse" />
           ))}
