@@ -25,6 +25,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ? [
           { href: '/reports', label: 'Rapor' },
           { href: '/orders', label: 'Geçmiş' },
+          { href: '/z-reports', label: 'Z Raporu' },
         ]
       : []),
     ...(user.role === 'admin'
