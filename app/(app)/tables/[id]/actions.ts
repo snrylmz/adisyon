@@ -132,6 +132,42 @@ export async function closeOrder(input: {
   redirect('/tables')
 }
 
+export async function setOrderDiscount(input: {
+  tableId: string
+  orderId: string
+  discount: number
+  reason: string | null
+}) {
+  await requireUser()
+  const sb = supabaseAdmin()
+
+  if (input.discount < 0) throw new Error('İskonto negatif olamaz')
+
+  const { data: order, error: gErr } = await sb
+    .from('orders')
+    .select('id, status, subtotal')
+    .eq('id', input.orderId)
+    .maybeSingle()
+  if (gErr) throw gErr
+  if (!order) throw new Error('Sipariş bulunamadı')
+  if ((order as any).status !== 'open') throw new Error('Sadece açık adisyona iskonto uygulanabilir')
+
+  const subtotal = Number((order as any).subtotal ?? 0)
+  const discount = Math.min(input.discount, subtotal) // total < 0 olamaz
+
+  const { error } = await sb
+    .from('orders')
+    .update({
+      discount,
+      discount_reason: input.reason?.trim() || null,
+    })
+    .eq('id', input.orderId)
+  if (error) throw error
+
+  revalidatePath(`/tables/${input.tableId}`)
+  revalidatePath('/tables')
+}
+
 export async function moveOrderToTable(input: { orderId: string; targetTableId: string }) {
   await requireUser()
   const sb = supabaseAdmin()

@@ -53,6 +53,38 @@ export default async function ReportsPage({
           />
         </div>
 
+        {report.discountTotal > 0 && (
+          <div className="bg-white rounded-2xl border border-zinc-200 p-4 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-lg">
+              🎁
+            </div>
+            <div className="flex-1">
+              <div className="text-sm font-semibold text-zinc-900">
+                {formatTRY(report.discountTotal)} iskonto/ikram
+              </div>
+              <div className="text-xs text-zinc-500 mt-0.5">
+                Bu aralıkta verilen toplam indirim · ciroya yansımamış değer
+              </div>
+            </div>
+          </div>
+        )}
+
+        {report.takeawayCount > 0 && (
+          <div className="bg-white rounded-2xl border border-zinc-200 p-4 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-lg">
+              📦
+            </div>
+            <div className="flex-1">
+              <div className="text-sm font-semibold text-zinc-900">
+                {report.takeawayCount} paket satış · {formatTRY(report.takeawayRevenue)}
+              </div>
+              <div className="text-xs text-zinc-500 mt-0.5">
+                Masa açmadan yapılan hızlı satışlar
+              </div>
+            </div>
+          </div>
+        )}
+
         {report.cancelledCount > 0 && (
           <div className="bg-white rounded-2xl border border-zinc-200 p-4 flex items-center gap-4">
             <div className="w-10 h-10 rounded-xl bg-zinc-100 flex items-center justify-center text-lg">

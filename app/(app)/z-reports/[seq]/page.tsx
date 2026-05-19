@@ -76,6 +76,29 @@ export default async function ZReportDetailPage({
           </div>
         </div>
 
+        {(z.discount_total > 0 || z.takeaway_count > 0) && (
+          <div className="px-6 py-4 border-b border-zinc-200 bg-zinc-50 space-y-2 text-sm">
+            {z.discount_total > 0 && (
+              <div className="flex items-center gap-3">
+                <span className="text-lg">🎁</span>
+                <span className="text-zinc-700">
+                  <span className="font-semibold">{formatTRY(z.discount_total)}</span>{' '}
+                  <span className="text-zinc-500">toplam iskonto/ikram verildi</span>
+                </span>
+              </div>
+            )}
+            {z.takeaway_count > 0 && (
+              <div className="flex items-center gap-3">
+                <span className="text-lg">📦</span>
+                <span className="text-zinc-700">
+                  <span className="font-semibold">{z.takeaway_count} paket</span>{' '}
+                  <span className="text-zinc-500">· {formatTRY(z.takeaway_revenue)}</span>
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
         {z.cancelled_count > 0 && (
           <div className="px-6 py-4 border-b border-zinc-200 bg-zinc-50 flex items-center gap-3">
             <span className="text-xl">⚠️</span>

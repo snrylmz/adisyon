@@ -114,15 +114,41 @@ export default async function OrderDetailPage({
           </ul>
         </div>
 
-        {/* Total */}
-        <div className="px-6 py-5 bg-zinc-50 border-t border-zinc-200 flex items-baseline justify-between">
-          <div className="text-xs uppercase tracking-wider font-bold text-zinc-500">Toplam</div>
-          <div
-            className={`text-3xl font-bold tabular-nums ${
-              cancelled ? 'text-zinc-400 line-through' : 'text-zinc-900'
-            }`}
-          >
-            {formatTRY(order.total)}
+        {/* Total + discount */}
+        <div className="px-6 py-5 bg-zinc-50 border-t border-zinc-200 space-y-1.5">
+          {Number((order as any).discount ?? 0) > 0 && (
+            <>
+              <div className="flex justify-between text-sm text-zinc-600">
+                <span>Ara toplam</span>
+                <span className="tabular-nums">
+                  {formatTRY(Number((order as any).subtotal ?? order.total))}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm text-red-600">
+                <span>
+                  İskonto
+                  {(order as any).discount_reason && (
+                    <span className="text-xs text-red-500/70">
+                      {' '}
+                      · {(order as any).discount_reason}
+                    </span>
+                  )}
+                </span>
+                <span className="tabular-nums">
+                  − {formatTRY(Number((order as any).discount))}
+                </span>
+              </div>
+            </>
+          )}
+          <div className="flex items-baseline justify-between pt-1">
+            <div className="text-xs uppercase tracking-wider font-bold text-zinc-500">Toplam</div>
+            <div
+              className={`text-3xl font-bold tabular-nums ${
+                cancelled ? 'text-zinc-400 line-through' : 'text-zinc-900'
+              }`}
+            >
+              {formatTRY(order.total)}
+            </div>
           </div>
         </div>
       </div>

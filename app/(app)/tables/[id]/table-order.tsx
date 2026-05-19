@@ -22,6 +22,7 @@ import {
   closeOrder,
   moveOrderToTable,
   removeOrderItem,
+  setOrderDiscount,
 } from './actions'
 
 type Props = {
@@ -56,6 +57,12 @@ export default function TableOrder({
   const [removing, setRemoving] = useState<OrderItem | null>(null)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelBusy, setCancelBusy] = useState(false)
+  const [discountOpen, setDiscountOpen] = useState(false)
+  const [discountDraft, setDiscountDraft] = useState<{
+    kind: 'amount' | 'percent' | 'gift'
+    value: string
+    reason: string
+  }>({ kind: 'amount', value: '', reason: '' })
 
   const freeTables = useMemo(
     () => allTables.filter((t) => !t.open_order && t.id !== table.id),
@@ -142,13 +149,62 @@ export default function TableOrder({
     }
   }, [table.id])
 
-  // Toplam yerel hesaplama — optimistic UI ile her zaman tutarlı
-  const total = useMemo(
+  // Subtotal yerel hesaplama — optimistic UI ile her zaman tutarlı
+  const subtotal = useMemo(
     () => items.reduce((s, i) => s + Number(i.unit_price) * i.quantity, 0),
     [items],
   )
+  const discount = Number(order?.discount ?? 0)
+  const total = Math.max(0, subtotal - discount)
   const totalCount = useMemo(() => items.reduce((s, i) => s + i.quantity, 0), [items])
   const occupied = !!order || items.length > 0
+
+  function openDiscountModal() {
+    setDiscountDraft({
+      kind: discount > 0 ? 'amount' : 'amount',
+      value: discount > 0 ? String(discount) : '',
+      reason: order?.discount_reason ?? '',
+    })
+    setDiscountOpen(true)
+  }
+
+  function applyDiscount() {
+    if (!order) return
+    let amount = 0
+    if (discountDraft.kind === 'gift') {
+      amount = subtotal
+    } else if (discountDraft.kind === 'percent') {
+      const pct = Number(discountDraft.value)
+      if (!(pct >= 0 && pct <= 100)) return
+      amount = Math.round(subtotal * pct) / 100
+    } else {
+      const v = Number(discountDraft.value)
+      if (!(v >= 0)) return
+      amount = v
+    }
+    startTransition(async () => {
+      await setOrderDiscount({
+        tableId: table.id,
+        orderId: order.id,
+        discount: amount,
+        reason: discountDraft.reason.trim() || null,
+      })
+      setDiscountOpen(false)
+    })
+  }
+
+  function clearDiscount() {
+    if (!order) return
+    startTransition(async () => {
+      await setOrderDiscount({
+        tableId: table.id,
+        orderId: order.id,
+        discount: 0,
+        reason: null,
+      })
+      setDiscountOpen(false)
+    })
+  }
 
   const openAdd = useCallback((p: Product) => {
     setPending({ product: p, quantity: 1, note: '' })
@@ -322,6 +378,23 @@ export default function TableOrder({
 
         {/* Footer / Checkout */}
         <div className="border-t border-zinc-200 bg-gradient-to-b from-white to-zinc-50">
+          {occupied && discount > 0 && (
+            <div className="px-5 pt-4 pb-1 space-y-1 text-sm">
+              <div className="flex justify-between text-zinc-500">
+                <span>Ara toplam</span>
+                <span className="tabular-nums">{formatTRY(subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-red-600">
+                <span className="inline-flex items-center gap-1">
+                  İskonto
+                  {order?.discount_reason && (
+                    <span className="text-xs text-red-500/70">· {order.discount_reason}</span>
+                  )}
+                </span>
+                <span className="tabular-nums">− {formatTRY(discount)}</span>
+              </div>
+            </div>
+          )}
           <div className="px-5 py-4 flex items-baseline justify-between">
             <div>
               <div className="text-xs uppercase tracking-wider font-bold text-zinc-500">
@@ -335,6 +408,16 @@ export default function TableOrder({
               {formatTRY(total)}
             </div>
           </div>
+          {occupied && !closing && (
+            <div className="px-5 -mt-2 pb-2 flex justify-end">
+              <button
+                onClick={openDiscountModal}
+                className="text-xs font-semibold text-brand-600 hover:text-brand-700 inline-flex items-center gap-1"
+              >
+                {discount > 0 ? 'İskontoyu düzenle' : '+ İskonto / İkram ekle'}
+              </button>
+            </div>
+          )}
           {occupied && (
             <div className="px-5 pb-5 space-y-2">
               {!closing ? (
@@ -464,6 +547,134 @@ export default function TableOrder({
           )}
         </div>
       </section>
+
+      {/* İskonto modal'ı */}
+      <Modal
+        open={discountOpen}
+        onClose={() => setDiscountOpen(false)}
+        title="İskonto / İkram"
+        description={`Ara toplam: ${formatTRY(subtotal)}`}
+        size="sm"
+      >
+        <div className="space-y-4">
+          {/* Kind selector */}
+          <div className="grid grid-cols-3 gap-1.5 bg-zinc-100 p-1 rounded-xl">
+            {(
+              [
+                { k: 'amount' as const, label: 'Tutar (₺)' },
+                { k: 'percent' as const, label: 'Yüzde (%)' },
+                { k: 'gift' as const, label: 'Tümü İkram' },
+              ]
+            ).map((opt) => (
+              <button
+                key={opt.k}
+                onClick={() => setDiscountDraft({ ...discountDraft, kind: opt.k, value: '' })}
+                className={cn(
+                  'h-10 px-2 rounded-lg text-sm font-semibold transition',
+                  discountDraft.kind === opt.k
+                    ? 'bg-white shadow-sm text-zinc-900'
+                    : 'text-zinc-600 hover:text-zinc-900',
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          {discountDraft.kind !== 'gift' && (
+            <div>
+              <label className="text-[11px] uppercase tracking-wider font-bold text-zinc-500 block mb-2">
+                {discountDraft.kind === 'amount' ? 'Tutar (₺)' : 'Yüzde (%)'}
+              </label>
+              <input
+                autoFocus
+                type="number"
+                inputMode="decimal"
+                step={discountDraft.kind === 'amount' ? '0.01' : '1'}
+                min="0"
+                max={discountDraft.kind === 'percent' ? '100' : undefined}
+                value={discountDraft.value}
+                onChange={(e) =>
+                  setDiscountDraft({ ...discountDraft, value: e.target.value })
+                }
+                placeholder={discountDraft.kind === 'amount' ? '0,00' : '10'}
+                className="w-full h-12 px-3.5 text-xl font-bold tabular-nums rounded-xl bg-white border border-zinc-300 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="text-[11px] uppercase tracking-wider font-bold text-zinc-500 block mb-2">
+              Sebep <span className="font-normal normal-case text-zinc-400">(opsiyonel)</span>
+            </label>
+            <select
+              value={discountDraft.reason}
+              onChange={(e) => setDiscountDraft({ ...discountDraft, reason: e.target.value })}
+              className="w-full h-11 px-3 rounded-xl bg-white border border-zinc-300 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            >
+              <option value="">— Seç —</option>
+              <option value="İkram">İkram</option>
+              <option value="Müşteri şikayeti">Müşteri şikayeti</option>
+              <option value="Personel">Personel</option>
+              <option value="Tanıdık">Tanıdık</option>
+              <option value="Diğer">Diğer</option>
+            </select>
+          </div>
+
+          {/* Preview */}
+          {(() => {
+            const previewAmount =
+              discountDraft.kind === 'gift'
+                ? subtotal
+                : discountDraft.kind === 'percent'
+                  ? Math.round((subtotal * Number(discountDraft.value || 0)) / 100 * 100) / 100
+                  : Number(discountDraft.value || 0)
+            const previewTotal = Math.max(0, subtotal - previewAmount)
+            return (
+              <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-3 text-sm space-y-1">
+                <div className="flex justify-between text-zinc-600">
+                  <span>Ara toplam</span>
+                  <span className="tabular-nums">{formatTRY(subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-red-600">
+                  <span>İskonto</span>
+                  <span className="tabular-nums">− {formatTRY(previewAmount)}</span>
+                </div>
+                <div className="flex justify-between font-bold text-zinc-900 pt-1 border-t border-zinc-200">
+                  <span>Yeni toplam</span>
+                  <span className="tabular-nums">{formatTRY(previewTotal)}</span>
+                </div>
+              </div>
+            )
+          })()}
+
+          <div className="flex items-center gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setDiscountOpen(false)}
+              className="h-12 px-5 bg-white border border-zinc-300 hover:bg-zinc-50 rounded-xl font-semibold text-zinc-700"
+            >
+              Vazgeç
+            </button>
+            <button
+              type="button"
+              onClick={applyDiscount}
+              className="flex-1 h-12 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-xl shadow-md shadow-brand-600/20"
+            >
+              Uygula
+            </button>
+          </div>
+          {discount > 0 && (
+            <button
+              type="button"
+              onClick={clearDiscount}
+              className="w-full h-9 text-xs text-red-600 hover:text-red-700 hover:underline"
+            >
+              İskontoyu kaldır
+            </button>
+          )}
+        </div>
+      </Modal>
 
       {/* Adisyon iptal onay modal'ı */}
       <Modal
