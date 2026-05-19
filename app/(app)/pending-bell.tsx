@@ -6,9 +6,10 @@ import { useEffect, useRef, useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 
-const BEEP_INTERVAL_MS = 30_000
+const BEEP_INTERVAL_MS = 20_000 // daha sık tekrar — gözden kaçırma riski azalsın
 
-// Tek bir global AudioContext — kullanıcı etkileşimi ile prime ediliyor
+// ---------- Audio ----------
+
 let audioCtx: AudioContext | null = null
 let audioPrimed = false
 
@@ -29,7 +30,6 @@ function primeAudio() {
     ctx.resume().catch(() => {})
   }
   if (!audioPrimed) {
-    // No-op sessiz buffer çalıyoruz — iOS bunu user-gesture'a bağlı initialize için ister
     try {
       const buf = ctx.createBuffer(1, 1, 22050)
       const src = ctx.createBufferSource()
@@ -41,50 +41,102 @@ function primeAudio() {
   }
 }
 
-export function playBeep() {
+/** Agresif alarm: 6 hızlı bing, alternatif yüksek frekanslar, yüksek volume */
+export function playAlarm() {
   const ctx = ensureAudioContext()
   if (!ctx) return
-  if (ctx.state === 'suspended') {
-    ctx.resume().catch(() => {})
-  }
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {})
   try {
-    const t = ctx.currentTime
-    // İlk ton: 880 Hz
-    const o1 = ctx.createOscillator()
-    const g1 = ctx.createGain()
-    o1.connect(g1)
-    g1.connect(ctx.destination)
-    o1.frequency.value = 880
-    o1.type = 'sine'
-    g1.gain.setValueAtTime(0.0001, t)
-    g1.gain.exponentialRampToValueAtTime(0.4, t + 0.02)
-    g1.gain.exponentialRampToValueAtTime(0.0001, t + 0.5)
-    o1.start(t)
-    o1.stop(t + 0.55)
-    // İkinci ton: 1320 Hz (üst oktav)
-    const o2 = ctx.createOscillator()
-    const g2 = ctx.createGain()
-    o2.connect(g2)
-    g2.connect(ctx.destination)
-    o2.frequency.value = 1320
-    o2.type = 'sine'
-    g2.gain.setValueAtTime(0.0001, t + 0.15)
-    g2.gain.exponentialRampToValueAtTime(0.35, t + 0.17)
-    g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.6)
-    o2.start(t + 0.15)
-    o2.stop(t + 0.65)
+    const t0 = ctx.currentTime
+    const bursts = 6
+    const burstDur = 0.18
+    const gap = 0.05
+    const step = burstDur + gap
+
+    // Master gain — limiter etkisi için
+    const master = ctx.createGain()
+    master.gain.value = 0.85
+    master.connect(ctx.destination)
+
+    for (let i = 0; i < bursts; i++) {
+      const start = t0 + i * step
+      // Alternatif tiz frekanslar — siren hissi
+      const freq = i % 2 === 0 ? 1200 : 1700
+
+      // İki katman: square (sert) + sine (gövde)
+      const oSq = ctx.createOscillator()
+      oSq.type = 'square'
+      oSq.frequency.value = freq
+      const gSq = ctx.createGain()
+      gSq.gain.setValueAtTime(0.0001, start)
+      gSq.gain.exponentialRampToValueAtTime(0.45, start + 0.015)
+      gSq.gain.exponentialRampToValueAtTime(0.0001, start + burstDur - 0.01)
+      oSq.connect(gSq)
+      gSq.connect(master)
+      oSq.start(start)
+      oSq.stop(start + burstDur)
+
+      const oSi = ctx.createOscillator()
+      oSi.type = 'sine'
+      oSi.frequency.value = freq
+      const gSi = ctx.createGain()
+      gSi.gain.setValueAtTime(0.0001, start)
+      gSi.gain.exponentialRampToValueAtTime(0.55, start + 0.012)
+      gSi.gain.exponentialRampToValueAtTime(0.0001, start + burstDur - 0.005)
+      oSi.connect(gSi)
+      gSi.connect(master)
+      oSi.start(start)
+      oSi.stop(start + burstDur)
+    }
   } catch (e) {
-    console.warn('playBeep failed:', e)
+    console.warn('playAlarm failed:', e)
   }
 }
+
+// ---------- Notification ----------
+
+function showOrderNotification(count: number) {
+  if (typeof Notification === 'undefined') return
+  if (Notification.permission !== 'granted') return
+  // Tab görünür durumdaysa (kullanıcı zaten bakıyor) bildirim gönderme
+  if (document.visibilityState === 'visible') return
+  try {
+    const n = new Notification('🧁 Yeni sipariş bekliyor', {
+      body: `${count} sipariş onayını bekliyor`,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      tag: 'pending-order', // aynı tag → eski bildirim üzerine yazar, yığılmaz
+      requireInteraction: true,
+      silent: false,
+    })
+    n.onclick = () => {
+      window.focus()
+      window.location.href = '/pending'
+      n.close()
+    }
+  } catch {}
+}
+
+// ---------- Component ----------
 
 export default function PendingBell() {
   const [count, setCount] = useState(0)
   const [audioBlocked, setAudioBlocked] = useState(false)
+  const [notifPerm, setNotifPerm] = useState<NotificationPermission | 'unsupported'>('default')
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const prevCountRef = useRef(0)
   const pathname = usePathname()
 
-  // Sayfa açılır açılmaz audio prime için global click/touch listener
+  // İlk yüklemede notification durumunu oku
+  useEffect(() => {
+    if (typeof Notification === 'undefined') {
+      setNotifPerm('unsupported')
+      return
+    }
+    setNotifPerm(Notification.permission)
+  }, [])
+
+  // Audio prime — ilk dokunmada açılır
   useEffect(() => {
     function onInteraction() {
       primeAudio()
@@ -93,7 +145,6 @@ export default function PendingBell() {
         setAudioBlocked(false)
       }
     }
-    // Ses durumunu başlangıçta kontrol et
     const ctx = ensureAudioContext()
     setAudioBlocked(!!ctx && ctx.state !== 'running')
 
@@ -107,6 +158,7 @@ export default function PendingBell() {
     }
   }, [])
 
+  // Pending sayısı + realtime
   useEffect(() => {
     const sb = supabaseBrowser()
     let cancelled = false
@@ -147,15 +199,21 @@ export default function PendingBell() {
     }
   }, [])
 
-  // count > 0 ise her 30 sn'de çal
+  // count > 0 olduğu sürece alarm çal (her 20 sn)
   useEffect(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
       intervalRef.current = null
     }
+    // Yeni sipariş geldiyse browser notification
+    if (count > prevCountRef.current && count > 0) {
+      showOrderNotification(count)
+    }
+    prevCountRef.current = count
+
     if (count > 0) {
-      playBeep()
-      intervalRef.current = setInterval(playBeep, BEEP_INTERVAL_MS)
+      playAlarm()
+      intervalRef.current = setInterval(playAlarm, BEEP_INTERVAL_MS)
     }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
@@ -164,31 +222,60 @@ export default function PendingBell() {
 
   function testSound() {
     primeAudio()
-    playBeep()
+    playAlarm()
     const ctx = ensureAudioContext()
     setAudioBlocked(!!ctx && ctx.state !== 'running')
   }
 
+  function requestNotif() {
+    if (typeof Notification === 'undefined') return
+    Notification.requestPermission()
+      .then((p) => {
+        setNotifPerm(p)
+        if (p === 'granted') {
+          // Tek seferlik onay bildirimi
+          try {
+            new Notification('Bildirimler açıldı', {
+              body: 'Yeni sipariş geldiğinde uyarı alacaksınız',
+              icon: '/icons/icon-192.png',
+            })
+          } catch {}
+        }
+      })
+      .catch(() => {})
+  }
+
   return (
     <div className="flex items-center gap-1">
-      {audioBlocked && (
+      {/* Notification permission request — sadece henüz sorulmadıysa */}
+      {notifPerm === 'default' && (
         <button
-          onClick={testSound}
-          title="Bildirim sesi kapalı görünüyor — açmak için tıklayın"
+          onClick={requestNotif}
+          title="Tarayıcı bildirimlerini aç"
           className="px-2 py-1.5 rounded-lg text-xs font-semibold bg-amber-100 text-amber-800 hover:bg-amber-200"
         >
-          🔇 Ses
+          🔔 İzin
         </button>
       )}
-      {!audioBlocked && (
-        <button
-          onClick={testSound}
-          title="Bildirim sesini test et"
-          className="px-2 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100"
-        >
-          🔊
-        </button>
-      )}
+
+      {/* Audio test / status */}
+      <button
+        onClick={testSound}
+        title={
+          audioBlocked
+            ? 'Bildirim sesi kilitli — açmak için dokun'
+            : 'Bildirim sesini test et'
+        }
+        className={cn(
+          'px-2 py-1.5 rounded-lg text-xs',
+          audioBlocked
+            ? 'font-semibold bg-amber-100 text-amber-800 hover:bg-amber-200'
+            : 'text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100',
+        )}
+      >
+        {audioBlocked ? '🔇 Ses' : '🔊'}
+      </button>
+
       {count === 0 ? (
         <Link
           href="/pending"
