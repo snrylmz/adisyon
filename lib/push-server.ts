@@ -52,7 +52,11 @@ export async function sendPushToAll(payload: PushPayload): Promise<void> {
           keys: { p256dh: s.p256dh, auth: s.auth },
         },
         data,
-        { TTL: 60 }, // bildirim 60 sn taze
+        {
+          TTL: 120,
+          urgency: 'high', // iOS: cihaz uykudaysa hemen uyandır
+          topic: 'pending', // 32 char max — aynı topic'teki eski bildirim yerini alır
+        },
       ),
     ),
   )

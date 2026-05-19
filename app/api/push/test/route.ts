@@ -47,7 +47,7 @@ export async function POST() {
       await webpush.sendNotification(
         { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
         payload,
-        { TTL: 30 },
+        { TTL: 120, urgency: 'high', topic: 'test' },
       )
       results.push({ endpoint: s.endpoint.slice(-20), ok: true })
     } catch (e: any) {
