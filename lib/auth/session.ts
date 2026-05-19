@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 import { cookies } from 'next/headers'
 import crypto from 'node:crypto'
 import { getProfile } from '@/lib/db/queries'
@@ -58,13 +59,15 @@ export async function readSessionId(): Promise<string | null> {
   return verify(raw)
 }
 
-export async function getCurrentUser(): Promise<SessionUser | null> {
+// React cache() — aynı request içinde birden fazla çağrı tek DB sorgusuyla cevaplanır
+// (layout + page hep birlikte getCurrentUser çağırıyor)
+export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   const id = await readSessionId()
   if (!id) return null
   const p = await getProfile(id)
   if (!p || !p.active) return null
   return { id: p.id, name: p.name, role: p.role }
-}
+})
 
 export async function requireUser(): Promise<SessionUser> {
   const u = await getCurrentUser()
