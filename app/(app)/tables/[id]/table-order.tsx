@@ -963,7 +963,7 @@ const ProductCard = memo(function ProductCard({
       )}
     >
       <div className="font-semibold text-zinc-900 leading-tight">{product.name}</div>
-      <div className="flex items-end justify-between mt-2">
+      <div className="flex items-end justify-between mt-2 w-full">
         <div className="text-xl font-bold tabular-nums text-brand-700">
           {formatTRY(product.price)}
         </div>

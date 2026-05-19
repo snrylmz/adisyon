@@ -423,7 +423,7 @@ const ProductCard = memo(function ProductCard({
       className="group bg-white rounded-2xl border border-zinc-200 hover:border-brand-300 hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all p-4 text-left min-h-[110px] flex flex-col justify-between"
     >
       <div className="font-semibold text-zinc-900 leading-tight">{product.name}</div>
-      <div className="flex items-end justify-between mt-2">
+      <div className="flex items-end justify-between mt-2 w-full">
         <div className="text-xl font-bold tabular-nums text-brand-700">
           {formatTRY(product.price)}
         </div>
