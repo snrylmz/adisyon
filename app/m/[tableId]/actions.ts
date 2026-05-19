@@ -71,14 +71,20 @@ export async function submitPendingOrder(input: {
     .single()
   if (iErr) return { ok: false, error: iErr.message }
 
-  // Push notification fan-out (best effort, hatayı yutar — sipariş yine kaydedildi)
+  // Push notification fan-out — AWAIT et, çünkü Vercel serverless
+  // function response döndükten sonra async işleri sonlandırır
   const itemCount = items.reduce((s, i) => s + i.quantity, 0)
-  sendPushToAll({
-    title: '🧁 Yeni sipariş',
-    body: `${(table as any).name} · ${itemCount} ürün`,
-    url: '/pending',
-    tag: 'pending-order',
-  }).catch((e) => console.warn('push fan-out failed:', e))
+  try {
+    await sendPushToAll({
+      title: '🧁 Yeni sipariş',
+      body: `${(table as any).name} · ${itemCount} ürün`,
+      url: '/pending',
+      tag: 'pending-order',
+    })
+  } catch (e) {
+    // Push başarısız olsa bile sipariş kaydedildi, customer'a ok dön
+    console.warn('push fan-out failed:', e)
+  }
 
   return { ok: true, pendingId: (inserted as any).id }
 }
