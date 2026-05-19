@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { cn, formatTRY, formatTime } from '@/lib/utils'
 import { Modal } from '@/components/ui/modal'
@@ -45,7 +45,6 @@ export default function TableOrder({
   const [pending, setPending] = useState<{ product: Product; quantity: number; note: string } | null>(null)
   const [adding, setAdding] = useState(false)
   const [removing, setRemoving] = useState<OrderItem | null>(null)
-  const [removingBusy, setRemovingBusy] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelBusy, setCancelBusy] = useState(false)
 
@@ -54,15 +53,16 @@ export default function TableOrder({
     [allTables, table.id],
   )
 
+  const deferredSearch = useDeferredValue(search)
   const visibleProducts = useMemo(() => {
     let list = products
     if (activeCat !== 'all') list = list.filter((p) => p.category_id === activeCat)
-    if (search.trim()) {
-      const q = search.toLocaleLowerCase('tr-TR')
+    if (deferredSearch.trim()) {
+      const q = deferredSearch.toLocaleLowerCase('tr-TR')
       list = list.filter((p) => p.name.toLocaleLowerCase('tr-TR').includes(q))
     }
     return list
-  }, [products, activeCat, search])
+  }, [products, activeCat, deferredSearch])
 
   const productCountByCat = useMemo(() => {
     const m = new Map<string, number>()
@@ -72,8 +72,16 @@ export default function TableOrder({
     return m
   }, [products])
 
+  // Açık sipariş ID'sini ref'te tut — item filter için lazım, useEffect'i yeniden tetiklemesin
+  const orderIdRef = useRef<string | null>(initialOrder?.order.id ?? null)
+  useEffect(() => {
+    orderIdRef.current = order?.id ?? null
+  }, [order?.id])
+
   useEffect(() => {
     const sb = supabaseBrowser()
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
 
     async function refresh() {
       const { data: o } = await sb
@@ -82,6 +90,7 @@ export default function TableOrder({
         .eq('table_id', table.id)
         .eq('status', 'open')
         .maybeSingle()
+      if (cancelled) return
       if (!o) {
         setOrder(null)
         setItems([])
@@ -93,7 +102,19 @@ export default function TableOrder({
         .select('*')
         .eq('order_id', (o as any).id)
         .order('created_at')
+      if (cancelled) return
       setItems(((its ?? []) as any[]).map((i) => ({ ...i, unit_price: Number(i.unit_price) })))
+    }
+
+    function schedule(payload?: any) {
+      // order_items olaylarını mevcut adisyonla ilişkili mi diye filtrele
+      if (payload && payload.table === 'order_items') {
+        const oid = orderIdRef.current
+        const rowOid = payload.new?.order_id ?? payload.old?.order_id
+        if (oid && rowOid && rowOid !== oid) return // başka masanın eventi
+      }
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(refresh, 150)
     }
 
     const ch = sb
@@ -101,22 +122,28 @@ export default function TableOrder({
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders', filter: `table_id=eq.${table.id}` },
-        refresh,
+        schedule,
       )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, schedule)
       .subscribe()
     return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
       sb.removeChannel(ch)
     }
   }, [table.id])
 
-  const total = order?.total ?? 0
-  const totalCount = items.reduce((s, i) => s + i.quantity, 0)
-  const occupied = !!order
+  // Toplam yerel hesaplama — optimistic UI ile her zaman tutarlı
+  const total = useMemo(
+    () => items.reduce((s, i) => s + Number(i.unit_price) * i.quantity, 0),
+    [items],
+  )
+  const totalCount = useMemo(() => items.reduce((s, i) => s + i.quantity, 0), [items])
+  const occupied = !!order || items.length > 0
 
-  function openAdd(p: Product) {
+  const openAdd = useCallback((p: Product) => {
     setPending({ product: p, quantity: 1, note: '' })
-  }
+  }, [])
 
   function confirmAdd() {
     if (!pending) return
@@ -138,30 +165,41 @@ export default function TableOrder({
       }
     })
   }
-  function inc(it: OrderItem) {
-    startTransition(async () => {
-      await changeItemQuantity({ tableId: table.id, itemId: it.id, delta: 1 })
-    })
-  }
-  function dec(it: OrderItem) {
-    if (it.quantity <= 1) return // 1'in altına inmesin, silmek için × kullanılsın
-    startTransition(async () => {
-      await changeItemQuantity({ tableId: table.id, itemId: it.id, delta: -1 })
-    })
-  }
-  function askRemove(it: OrderItem) {
+  const inc = useCallback(
+    (it: OrderItem) => {
+      // Optimistic
+      setItems((prev) =>
+        prev.map((i) => (i.id === it.id ? { ...i, quantity: i.quantity + 1 } : i)),
+      )
+      startTransition(() => {
+        changeItemQuantity({ tableId: table.id, itemId: it.id, delta: 1 }).catch(() => {})
+      })
+    },
+    [table.id],
+  )
+  const dec = useCallback(
+    (it: OrderItem) => {
+      if (it.quantity <= 1) return
+      setItems((prev) =>
+        prev.map((i) => (i.id === it.id ? { ...i, quantity: i.quantity - 1 } : i)),
+      )
+      startTransition(() => {
+        changeItemQuantity({ tableId: table.id, itemId: it.id, delta: -1 }).catch(() => {})
+      })
+    },
+    [table.id],
+  )
+  const askRemove = useCallback((it: OrderItem) => {
     setRemoving(it)
-  }
+  }, [])
   function confirmRemove() {
     if (!removing) return
-    setRemovingBusy(true)
-    startTransition(async () => {
-      try {
-        await removeOrderItem({ tableId: table.id, itemId: removing.id })
-        setRemoving(null)
-      } finally {
-        setRemovingBusy(false)
-      }
+    // Optimistic kaldır
+    const id = removing.id
+    setItems((prev) => prev.filter((i) => i.id !== id))
+    setRemoving(null)
+    startTransition(() => {
+      removeOrderItem({ tableId: table.id, itemId: id }).catch(() => {})
     })
   }
   function doClose() {
@@ -261,51 +299,13 @@ export default function TableOrder({
           ) : (
             <ul className="divide-y divide-zinc-100">
               {items.map((it) => (
-                <li key={it.id} className="px-5 py-3 flex items-center gap-3 hover:bg-zinc-50/50">
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-zinc-900 truncate leading-tight">
-                      {it.product_name}
-                    </div>
-                    <div className="text-xs text-zinc-500 tabular-nums mt-0.5">
-                      {formatTRY(it.unit_price)} × {it.quantity}
-                    </div>
-                    {it.note && (
-                      <div className="text-xs text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded mt-1 inline-block">
-                        📝 {it.note}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center bg-zinc-100 rounded-full p-0.5">
-                    <button
-                      onClick={() => dec(it)}
-                      disabled={it.quantity <= 1}
-                      className="w-7 h-7 rounded-full text-zinc-700 hover:bg-white active:scale-90 transition font-bold flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                      aria-label="Azalt"
-                    >
-                      −
-                    </button>
-                    <div className="w-7 text-center font-bold tabular-nums text-sm">
-                      {it.quantity}
-                    </div>
-                    <button
-                      onClick={() => inc(it)}
-                      className="w-7 h-7 rounded-full text-zinc-700 hover:bg-white active:scale-90 transition font-bold flex items-center justify-center"
-                      aria-label="Artır"
-                    >
-                      +
-                    </button>
-                  </div>
-                  <div className="w-20 text-right font-bold tabular-nums text-zinc-900">
-                    {formatTRY(Number(it.unit_price) * it.quantity)}
-                  </div>
-                  <button
-                    onClick={() => askRemove(it)}
-                    aria-label="Kaldır"
-                    className="w-7 h-7 rounded-lg text-zinc-300 hover:text-red-600 hover:bg-red-50 active:scale-90 transition flex items-center justify-center"
-                  >
-                    🗑
-                  </button>
-                </li>
+                <OrderItemRow
+                  key={it.id}
+                  item={it}
+                  onInc={inc}
+                  onDec={dec}
+                  onRemove={askRemove}
+                />
               ))}
             </ul>
           )}
@@ -434,39 +434,14 @@ export default function TableOrder({
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-              {visibleProducts.map((p) => {
-                const flashing = flashId === p.id
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => openAdd(p)}
-                    className={cn(
-                      'group relative bg-white rounded-2xl border border-zinc-200',
-                      'hover:border-brand-300 hover:shadow-md hover:-translate-y-0.5',
-                      'active:scale-95 transition-all',
-                      'p-4 text-left min-h-[110px] flex flex-col justify-between',
-                      flashing && 'ring-2 ring-brand-500 shadow-lg',
-                    )}
-                  >
-                    <div className="font-semibold text-zinc-900 leading-tight">{p.name}</div>
-                    <div className="flex items-end justify-between mt-2">
-                      <div className="text-xl font-bold tabular-nums text-brand-700">
-                        {formatTRY(p.price)}
-                      </div>
-                      <span
-                        className={cn(
-                          'inline-flex items-center justify-center w-7 h-7 rounded-full',
-                          'bg-zinc-100 text-zinc-400 group-hover:bg-brand-600 group-hover:text-white',
-                          'transition',
-                          flashing && 'bg-brand-600 text-white scale-110',
-                        )}
-                      >
-                        +
-                      </span>
-                    </div>
-                  </button>
-                )
-              })}
+              {visibleProducts.map((p) => (
+                <ProductCard
+                  key={p.id}
+                  product={p}
+                  flashing={flashId === p.id}
+                  onPick={openAdd}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -520,7 +495,7 @@ export default function TableOrder({
       {/* Ürün kaldırma onay modal'ı */}
       <Modal
         open={!!removing}
-        onClose={() => !removingBusy && setRemoving(null)}
+        onClose={() => setRemoving(null)}
         title="Ürünü kaldır"
         size="sm"
       >
@@ -547,7 +522,6 @@ export default function TableOrder({
               <button
                 type="button"
                 onClick={() => setRemoving(null)}
-                disabled={removingBusy}
                 className="h-12 px-5 bg-white border border-zinc-300 hover:bg-zinc-50 rounded-xl font-semibold text-zinc-700 transition"
               >
                 Vazgeç
@@ -555,10 +529,9 @@ export default function TableOrder({
               <button
                 type="button"
                 onClick={confirmRemove}
-                disabled={removingBusy}
-                className="flex-1 h-12 bg-red-600 hover:bg-red-700 active:bg-red-800 disabled:bg-zinc-300 text-white font-semibold rounded-xl shadow-md shadow-red-600/20 transition"
+                className="flex-1 h-12 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-semibold rounded-xl shadow-md shadow-red-600/20 transition"
               >
-                {removingBusy ? 'Kaldırılıyor...' : 'Evet, kaldır'}
+                Evet, kaldır
               </button>
             </div>
           </div>
@@ -700,6 +673,114 @@ export default function TableOrder({
     </div>
   )
 }
+
+const ProductCard = memo(function ProductCard({
+  product,
+  flashing,
+  onPick,
+}: {
+  product: Product
+  flashing: boolean
+  onPick: (p: Product) => void
+}) {
+  return (
+    <button
+      onClick={() => onPick(product)}
+      className={cn(
+        'group relative bg-white rounded-2xl border border-zinc-200',
+        'hover:border-brand-300 hover:shadow-md hover:-translate-y-0.5',
+        'active:scale-95 transition-all',
+        'p-4 text-left min-h-[110px] flex flex-col justify-between',
+        flashing && 'ring-2 ring-brand-500 shadow-lg',
+      )}
+    >
+      <div className="font-semibold text-zinc-900 leading-tight">{product.name}</div>
+      <div className="flex items-end justify-between mt-2">
+        <div className="text-xl font-bold tabular-nums text-brand-700">
+          {formatTRY(product.price)}
+        </div>
+        <span
+          className={cn(
+            'inline-flex items-center justify-center w-7 h-7 rounded-full',
+            'bg-zinc-100 text-zinc-400 group-hover:bg-brand-600 group-hover:text-white',
+            'transition',
+            flashing && 'bg-brand-600 text-white scale-110',
+          )}
+        >
+          +
+        </span>
+      </div>
+    </button>
+  )
+})
+
+const OrderItemRow = memo(
+  function OrderItemRow({
+    item,
+    onInc,
+    onDec,
+    onRemove,
+  }: {
+    item: OrderItem
+    onInc: (it: OrderItem) => void
+    onDec: (it: OrderItem) => void
+    onRemove: (it: OrderItem) => void
+  }) {
+    return (
+      <li className="px-5 py-3 flex items-center gap-3 hover:bg-zinc-50/50">
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-zinc-900 truncate leading-tight">
+            {item.product_name}
+          </div>
+          <div className="text-xs text-zinc-500 tabular-nums mt-0.5">
+            {formatTRY(item.unit_price)} × {item.quantity}
+          </div>
+          {item.note && (
+            <div className="text-xs text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded mt-1 inline-block">
+              📝 {item.note}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center bg-zinc-100 rounded-full p-0.5">
+          <button
+            onClick={() => onDec(item)}
+            disabled={item.quantity <= 1}
+            className="w-7 h-7 rounded-full text-zinc-700 hover:bg-white active:scale-90 transition font-bold flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            aria-label="Azalt"
+          >
+            −
+          </button>
+          <div className="w-7 text-center font-bold tabular-nums text-sm">{item.quantity}</div>
+          <button
+            onClick={() => onInc(item)}
+            className="w-7 h-7 rounded-full text-zinc-700 hover:bg-white active:scale-90 transition font-bold flex items-center justify-center"
+            aria-label="Artır"
+          >
+            +
+          </button>
+        </div>
+        <div className="w-20 text-right font-bold tabular-nums text-zinc-900">
+          {formatTRY(Number(item.unit_price) * item.quantity)}
+        </div>
+        <button
+          onClick={() => onRemove(item)}
+          aria-label="Kaldır"
+          className="w-7 h-7 rounded-lg text-zinc-300 hover:text-red-600 hover:bg-red-50 active:scale-90 transition flex items-center justify-center"
+        >
+          🗑
+        </button>
+      </li>
+    )
+  },
+  (a, b) =>
+    a.item.id === b.item.id &&
+    a.item.quantity === b.item.quantity &&
+    a.item.unit_price === b.item.unit_price &&
+    a.item.note === b.item.note &&
+    a.onInc === b.onInc &&
+    a.onDec === b.onDec &&
+    a.onRemove === b.onRemove,
+)
 
 function CatPill({
   active,

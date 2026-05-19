@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { cn, formatTRY } from '@/lib/utils'
 import type { Role, TableWithOrder } from '@/lib/types'
@@ -21,6 +21,8 @@ export default function TablesGrid({
 
   useEffect(() => {
     const sb = supabaseBrowser()
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
 
     async function refresh() {
       const { data: rawTables } = await sb.from('tables').select('*').order('sort_order')
@@ -28,6 +30,7 @@ export default function TablesGrid({
         .from('orders')
         .select('*, order_items(id)')
         .eq('status', 'open')
+      if (cancelled) return
       const byTable = new Map<string, any>()
       for (const o of (orders ?? []) as any[]) byTable.set(o.table_id, o)
       const next: TableWithOrder[] = (rawTables ?? []).map((t: any) => {
@@ -52,14 +55,21 @@ export default function TablesGrid({
       setTables(next)
     }
 
+    function schedule() {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(refresh, 200)
+    }
+
     const channel = sb
       .channel('tables-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tables' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, schedule)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, schedule)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tables' }, schedule)
       .subscribe()
 
     return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
       sb.removeChannel(channel)
     }
   }, [])
@@ -144,7 +154,7 @@ export default function TablesGrid({
   )
 }
 
-function TableCard({ table }: { table: TableWithOrder }) {
+const TableCard = memo(function TableCard({ table }: { table: TableWithOrder }) {
   const occupied = !!table.open_order
   return (
     <Link
@@ -193,7 +203,7 @@ function TableCard({ table }: { table: TableWithOrder }) {
       </div>
     </Link>
   )
-}
+})
 
 function Elapsed({ iso }: { iso: string }) {
   const [now, setNow] = useState(() => Date.now())
