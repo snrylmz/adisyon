@@ -27,12 +27,12 @@ export default async function TableQRPage({
   const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https')
   const url = `${proto}://${host}/m/${id}`
 
-  // SVG QR
+  // SVG QR — yüksek hata düzeltme (ortadaki logo için)
   const qrSvg = await QRCode.toString(url, {
     type: 'svg',
     margin: 1,
     width: 320,
-    errorCorrectionLevel: 'M',
+    errorCorrectionLevel: 'H',
     color: { dark: '#18181b', light: '#ffffff' },
   })
 
@@ -56,16 +56,23 @@ export default async function TableQRPage({
         </div>
 
         <div className="p-8 flex justify-center">
-          <div
-            className="inline-block bg-white p-3 border border-zinc-200 rounded-2xl"
-            dangerouslySetInnerHTML={{ __html: qrSvg }}
-          />
+          <div className="relative inline-block bg-white p-3 border border-zinc-200 rounded-2xl">
+            <div dangerouslySetInnerHTML={{ __html: qrSvg }} />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="bg-white rounded-2xl p-1.5 shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/icons/icon-192.png" alt="" className="w-16 h-16 rounded-xl" />
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="px-8 pb-8 text-center space-y-2">
-          <p className="text-sm font-semibold text-zinc-900">QR'ı telefonunuzla okutun</p>
+          <p className="text-sm font-semibold text-zinc-900">
+            Menüyü görmek ve sipariş vermek için QR kodu okutun
+          </p>
           <p className="text-xs text-zinc-500">
-            Menüyü görün, sipariş gönderin. Garson onaylayınca masanıza işlenir.
+            Garson onayladıktan sonra siparişiniz masanıza işlenir.
           </p>
           <code className="block mt-4 text-[10px] text-zinc-400 break-all font-mono">
             {url}

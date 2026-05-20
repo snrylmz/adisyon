@@ -110,6 +110,12 @@ export default function TablesAdminClient({ tables }: { tables: Table[] }) {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Link
+              href="/admin/tables/qr"
+              className="inline-flex items-center gap-1.5 h-11 px-4 rounded-xl bg-white border border-zinc-300 hover:bg-zinc-50 text-sm font-semibold text-zinc-700 shadow-sm transition"
+            >
+              ⊞ Toplu QR
+            </Link>
             <Button variant="secondary" onClick={() => setBulk({ ...bulk, open: true })}>
               Toplu Ekle
             </Button>
