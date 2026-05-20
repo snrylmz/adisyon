@@ -61,7 +61,7 @@ export default async function TableQRPage({
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="bg-white rounded-2xl p-1.5 shadow-sm">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/icons/icon-192.png" alt="" className="w-16 h-16 rounded-xl" />
+                <img src="/icons/icon-192.png" alt="" className="w-20 h-20 rounded-xl" />
               </div>
             </div>
           </div>

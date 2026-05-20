@@ -57,35 +57,35 @@ export default async function BulkQRPage() {
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 print:gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 print:gap-4">
           {qrByTable.map(({ table, svg }) => (
             <div
               key={table.id}
-              className="break-inside-avoid rounded-2xl border-2 border-dashed border-zinc-300 bg-white p-5 flex flex-col items-center text-center"
+              className="break-inside-avoid rounded-2xl border-2 border-dashed border-zinc-300 bg-white p-6 flex flex-col items-center text-center"
             >
-              <div className="text-xl font-bold tracking-tight text-zinc-900 mb-3">
+              <div className="text-2xl font-bold tracking-tight text-zinc-900 mb-4">
                 {table.name}
               </div>
 
               {/* QR + ortada logo */}
               <div className="relative inline-block">
                 <div
-                  className="w-full max-w-[200px] mx-auto [&>svg]:w-full [&>svg]:h-auto"
+                  className="w-full max-w-[300px] mx-auto [&>svg]:w-full [&>svg]:h-auto"
                   dangerouslySetInnerHTML={{ __html: svg }}
                 />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="bg-white rounded-xl p-1 shadow-sm">
+                  <div className="bg-white rounded-2xl p-1.5 shadow-sm">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src="/icons/icon-192.png"
                       alt=""
-                      className="w-10 h-10 rounded-lg"
+                      className="w-16 h-16 rounded-xl"
                     />
                   </div>
                 </div>
               </div>
 
-              <p className="text-xs text-zinc-600 mt-3 leading-snug max-w-[200px]">
+              <p className="text-sm text-zinc-600 mt-4 leading-snug max-w-[300px]">
                 Menüyü görmek ve sipariş vermek için QR kodu okutun
               </p>
             </div>
