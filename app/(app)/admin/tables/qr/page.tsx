@@ -61,16 +61,16 @@ export default async function BulkQRPage() {
           {qrByTable.map(({ table, svg }) => (
             <div
               key={table.id}
-              className="break-inside-avoid rounded-2xl border-2 border-dashed border-zinc-300 bg-white p-6 flex flex-col items-center text-center"
+              className="break-inside-avoid rounded-2xl border-2 border-dashed border-zinc-300 bg-white p-3 flex flex-col items-center text-center"
             >
-              <div className="text-2xl font-bold tracking-tight text-zinc-900 mb-4">
+              <div className="text-2xl font-bold tracking-tight text-zinc-900 mb-2">
                 {table.name}
               </div>
 
               {/* QR + ortada logo */}
-              <div className="relative inline-block">
+              <div className="relative w-full">
                 <div
-                  className="w-full max-w-[300px] mx-auto [&>svg]:w-full [&>svg]:h-auto"
+                  className="w-full [&>svg]:w-full [&>svg]:h-auto [&>svg]:block"
                   dangerouslySetInnerHTML={{ __html: svg }}
                 />
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -79,13 +79,13 @@ export default async function BulkQRPage() {
                     <img
                       src="/icons/icon-192.png"
                       alt=""
-                      className="w-16 h-16 rounded-xl"
+                      className="w-20 h-20 rounded-xl"
                     />
                   </div>
                 </div>
               </div>
 
-              <p className="text-sm text-zinc-600 mt-4 leading-snug max-w-[300px]">
+              <p className="text-sm text-zinc-600 mt-2 leading-snug">
                 Menüyü görmek ve sipariş vermek için QR kodu okutun
               </p>
             </div>
