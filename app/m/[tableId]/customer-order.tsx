@@ -27,9 +27,22 @@ function getOrCreateSessionId(): string {
   return id
 }
 
-type Props = { table: Table; categories: Category[]; products: Product[] }
+type Props = {
+  table: Table
+  categories: Category[]
+  products: Product[]
+  popularIds: string[]
+  campaign: string | null
+}
 
-export default function CustomerOrder({ table, categories, products }: Props) {
+export default function CustomerOrder({
+  table,
+  categories,
+  products,
+  popularIds,
+  campaign,
+}: Props) {
+  const popularSet = useMemo(() => new Set(popularIds), [popularIds])
   const [activeCat, setActiveCat] = useState<string | 'all'>('all')
   const [cart, setCart] = useState<CartItem[]>([])
   const [pendingProduct, setPendingProduct] = useState<{
@@ -212,30 +225,64 @@ export default function CustomerOrder({ table, categories, products }: Props) {
         </div>
       </header>
 
+      {/* Kampanya banner */}
+      {campaign && (
+        <div className="mx-3 mt-3 rounded-2xl bg-gradient-to-r from-amber-100 to-brand-100 border border-amber-200 p-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl shrink-0">📣</span>
+            <p className="text-sm font-medium text-amber-950 leading-snug">{campaign}</p>
+          </div>
+        </div>
+      )}
+
       {/* Product list */}
       <div className="p-3">
         {visibleProducts.length === 0 ? (
           <div className="text-center py-16 text-zinc-400">Bu kategoride ürün yok</div>
         ) : (
           <ul className="space-y-2">
-            {visibleProducts.map((p) => (
-              <li key={p.id}>
-                <button
-                  onClick={() => openAdd(p)}
-                  className="w-full bg-white rounded-2xl border border-zinc-200 active:scale-[0.98] transition p-4 flex items-center justify-between gap-3 text-left"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-zinc-900 leading-tight">{p.name}</div>
-                    <div className="text-lg font-bold tabular-nums text-brand-700 mt-1">
-                      {formatTRY(p.price)}
+            {visibleProducts.map((p) => {
+              const isPopular = popularSet.has(p.id)
+              return (
+                <li key={p.id}>
+                  <button
+                    onClick={() => openAdd(p)}
+                    className="w-full bg-white rounded-2xl border border-zinc-200 active:scale-[0.98] transition p-3 flex items-center gap-3 text-left"
+                  >
+                    {/* Thumbnail */}
+                    <div className="w-16 h-16 rounded-xl bg-zinc-100 overflow-hidden shrink-0 flex items-center justify-center">
+                      {p.image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={p.image_url}
+                          alt={p.name}
+                          loading="lazy"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-2xl opacity-30">🍰</span>
+                      )}
                     </div>
-                  </div>
-                  <span className="w-10 h-10 rounded-full bg-brand-600 text-white text-xl font-bold flex items-center justify-center shrink-0">
-                    +
-                  </span>
-                </button>
-              </li>
-            ))}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-zinc-900 leading-tight">{p.name}</span>
+                        {isPopular && (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full shrink-0">
+                            ⭐ Popüler
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-lg font-bold tabular-nums text-brand-700 mt-1">
+                        {formatTRY(p.price)}
+                      </div>
+                    </div>
+                    <span className="w-10 h-10 rounded-full bg-brand-600 text-white text-xl font-bold flex items-center justify-center shrink-0">
+                      +
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>

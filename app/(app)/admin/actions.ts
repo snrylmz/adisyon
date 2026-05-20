@@ -41,12 +41,50 @@ export async function deleteCategory(formData: FormData) {
 
 // ---------- Products ----------
 
+export async function saveCampaign(formData: FormData) {
+  await requireAdmin()
+  const text = String(formData.get('text') ?? '').trim().slice(0, 200)
+  const active = formData.get('active') === 'on'
+  const sb = supabaseAdmin()
+  const { error } = await sb.from('settings').upsert(
+    [
+      { key: 'campaign_text', value: text, updated_at: new Date().toISOString() },
+      { key: 'campaign_active', value: active ? 'true' : 'false', updated_at: new Date().toISOString() },
+    ],
+    { onConflict: 'key' },
+  )
+  if (error) throw error
+  revalidatePath('/admin/products')
+}
+
+export async function uploadProductImage(formData: FormData): Promise<string> {
+  await requireAdmin()
+  const file = formData.get('file') as File | null
+  if (!file || file.size === 0) throw new Error('Dosya yok')
+  if (file.size > 3 * 1024 * 1024) throw new Error('Görsel 3MB üstünde, lütfen küçült')
+
+  const sb = supabaseAdmin()
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  const ext = (file.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg')
+  const path = `${crypto.randomUUID()}.${ext}`
+
+  const { error } = await sb.storage.from('product-images').upload(path, bytes, {
+    contentType: file.type || 'image/jpeg',
+    upsert: false,
+  })
+  if (error) throw error
+
+  const { data } = sb.storage.from('product-images').getPublicUrl(path)
+  return data.publicUrl
+}
+
 export async function createProduct(formData: FormData) {
   await requireAdmin()
   const name = String(formData.get('name') ?? '').trim()
   const category_id = String(formData.get('category_id') ?? '') || null
   const price = Number(formData.get('price') ?? 0)
   const sort = Number(formData.get('sort_order') ?? 0) || 0
+  const image_url = String(formData.get('image_url') ?? '') || null
   if (!name || !(price >= 0)) throw new Error('Geçersiz ürün')
   const sb = supabaseAdmin()
   const { error } = await sb.from('products').insert({
@@ -54,6 +92,7 @@ export async function createProduct(formData: FormData) {
     category_id,
     price,
     sort_order: sort,
+    image_url,
   })
   if (error) throw error
   revalidatePath('/admin/products')
@@ -67,12 +106,15 @@ export async function updateProduct(formData: FormData) {
   const price = Number(formData.get('price') ?? 0)
   const sort = Number(formData.get('sort_order') ?? 0) || 0
   const active = formData.get('active') === 'on'
+  // image_url: 'KEEP' ise dokunma, '' ise sil, dolu ise güncelle
+  const rawImage = formData.get('image_url')
   if (!id || !name) throw new Error('Eksik bilgi')
   const sb = supabaseAdmin()
-  const { error } = await sb
-    .from('products')
-    .update({ name, category_id, price, sort_order: sort, active })
-    .eq('id', id)
+  const update: any = { name, category_id, price, sort_order: sort, active }
+  if (rawImage !== null && rawImage !== 'KEEP') {
+    update.image_url = String(rawImage) || null
+  }
+  const { error } = await sb.from('products').update(update).eq('id', id)
   if (error) throw error
   revalidatePath('/admin/products')
 }

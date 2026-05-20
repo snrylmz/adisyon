@@ -11,11 +11,17 @@ import {
   createProduct,
   deleteCategory,
   deleteProduct,
+  saveCampaign,
   updateCategory,
   updateProduct,
+  uploadProductImage,
 } from '../actions'
 
-type Props = { categories: Category[]; products: Product[] }
+type Props = {
+  categories: Category[]
+  products: Product[]
+  campaign: { text: string; active: boolean }
+}
 
 type ProductDraft = {
   id?: string
@@ -24,6 +30,7 @@ type ProductDraft = {
   price: string
   sort_order: string
   active: boolean
+  image_url: string | null
 }
 
 type CategoryDraft = { id?: string; name: string; sort_order: string }
@@ -34,15 +41,51 @@ const EMPTY_PRODUCT: ProductDraft = {
   price: '',
   sort_order: '0',
   active: true,
+  image_url: null,
+}
+
+// Görseli tarayıcıda küçült (max 800px genişlik, jpeg %82) → upload boyutu düşer
+async function resizeImage(file: File, maxW = 800): Promise<Blob> {
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, maxW / bitmap.width)
+  const w = Math.round(bitmap.width * scale)
+  const h = Math.round(bitmap.height * scale)
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')!
+  ctx.drawImage(bitmap, 0, 0, w, h)
+  return new Promise((resolve, reject) =>
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error('Görsel işlenemedi'))),
+      'image/jpeg',
+      0.82,
+    ),
+  )
 }
 const EMPTY_CATEGORY: CategoryDraft = { name: '', sort_order: '0' }
 
-export default function ProductsClient({ categories, products }: Props) {
+export default function ProductsClient({ categories, products, campaign }: Props) {
   const [activeCat, setActiveCat] = useState<string | 'all'>('all')
   const [productModal, setProductModal] = useState<ProductDraft | null>(null)
   const [categoryModal, setCategoryModal] = useState<CategoryDraft | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const [imageUploading, setImageUploading] = useState(false)
+  const [campaignText, setCampaignText] = useState(campaign.text)
+  const [campaignActive, setCampaignActive] = useState(campaign.active)
+  const [campaignSaved, setCampaignSaved] = useState(false)
+
+  function saveCampaignSettings() {
+    const fd = new FormData()
+    fd.set('text', campaignText)
+    if (campaignActive) fd.set('active', 'on')
+    startTransition(async () => {
+      await saveCampaign(fd)
+      setCampaignSaved(true)
+      setTimeout(() => setCampaignSaved(false), 2000)
+    })
+  }
 
   const countByCat = useMemo(() => {
     const m = new Map<string, number>()
@@ -74,7 +117,25 @@ export default function ProductsClient({ categories, products }: Props) {
       price: String(p.price),
       sort_order: String(p.sort_order),
       active: p.active,
+      image_url: p.image_url,
     })
+  }
+
+  async function handleImagePick(file: File) {
+    if (!productModal) return
+    setError(null)
+    setImageUploading(true)
+    try {
+      const blob = await resizeImage(file)
+      const fd = new FormData()
+      fd.set('file', new File([blob], 'product.jpg', { type: 'image/jpeg' }))
+      const url = await uploadProductImage(fd)
+      setProductModal((prev) => (prev ? { ...prev, image_url: url } : prev))
+    } catch (e: any) {
+      setError(e?.message ?? 'Görsel yüklenemedi')
+    } finally {
+      setImageUploading(false)
+    }
   }
 
   function saveProduct() {
@@ -85,6 +146,7 @@ export default function ProductsClient({ categories, products }: Props) {
     fd.set('price', productModal.price)
     fd.set('sort_order', productModal.sort_order)
     if (productModal.active) fd.set('active', 'on')
+    fd.set('image_url', productModal.image_url ?? '')
     if (!fd.get('name')) {
       setError('Ürün adı boş olamaz')
       return
@@ -176,6 +238,44 @@ export default function ProductsClient({ categories, products }: Props) {
         </div>
       </div>
 
+      {/* Kampanya banner ayarı */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-6">
+        <div className="bg-white rounded-2xl border border-zinc-200 p-4">
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">📣</span>
+              <h2 className="text-sm font-bold uppercase tracking-wide text-zinc-600">
+                Müşteri Menüsü Duyurusu
+              </h2>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={campaignActive}
+                onChange={(e) => setCampaignActive(e.target.checked)}
+                className="w-4 h-4 accent-brand-600"
+              />
+              <span className="text-zinc-700">Yayında</span>
+            </label>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              value={campaignText}
+              onChange={(e) => setCampaignText(e.target.value)}
+              maxLength={200}
+              placeholder="Örn. Bugün taze çilekli tart! 🍓"
+              className="flex-1 h-11 px-3.5 rounded-xl bg-white border border-zinc-300 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            />
+            <Button variant="primary" onClick={saveCampaignSettings} disabled={pending}>
+              {campaignSaved ? '✓ Kaydedildi' : 'Kaydet'}
+            </Button>
+          </div>
+          <p className="text-xs text-zinc-400 mt-2">
+            QR menüde en üstte gösterilir. "Yayında" kapalıysa müşteri görmez.
+          </p>
+        </div>
+      </div>
+
       {/* Layout */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 grid grid-cols-12 gap-6">
         {/* Sidebar */}
@@ -236,28 +336,38 @@ export default function ProductsClient({ categories, products }: Props) {
                     className={cn(
                       'group text-left bg-white rounded-2xl border border-zinc-200 p-4',
                       'hover:border-brand-300 hover:shadow-md hover:-translate-y-0.5 transition-all',
-                      'flex flex-col gap-2',
+                      'flex gap-3',
                       !p.active && 'opacity-60',
                     )}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="font-semibold text-zinc-900 leading-tight">{p.name}</div>
-                      {!p.active && (
-                        <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-500 bg-zinc-100 px-1.5 py-0.5 rounded">
-                          Pasif
-                        </span>
+                    <div className="w-16 h-16 rounded-xl bg-zinc-100 overflow-hidden shrink-0 flex items-center justify-center">
+                      {p.image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.image_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-xl opacity-30">🍰</span>
                       )}
                     </div>
-                    <div className="text-2xl font-bold text-brand-700 tabular-nums">
-                      {formatTRY(p.price)}
-                    </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-xs text-zinc-500">
-                        {cat?.name ?? <span className="italic">Kategorisiz</span>}
-                      </span>
-                      <span className="text-xs text-brand-600 opacity-0 group-hover:opacity-100 transition">
-                        Düzenle →
-                      </span>
+                    <div className="flex-1 min-w-0 flex flex-col gap-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="font-semibold text-zinc-900 leading-tight">{p.name}</div>
+                        {!p.active && (
+                          <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-500 bg-zinc-100 px-1.5 py-0.5 rounded shrink-0">
+                            Pasif
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xl font-bold text-brand-700 tabular-nums">
+                        {formatTRY(p.price)}
+                      </div>
+                      <div className="flex items-center justify-between mt-auto">
+                        <span className="text-xs text-zinc-500 truncate">
+                          {cat?.name ?? <span className="italic">Kategorisiz</span>}
+                        </span>
+                        <span className="text-xs text-brand-600 opacity-0 group-hover:opacity-100 transition shrink-0">
+                          Düzenle →
+                        </span>
+                      </div>
                     </div>
                   </button>
                 )
@@ -282,9 +392,54 @@ export default function ProductsClient({ categories, products }: Props) {
             }}
             className="space-y-4"
           >
+            {/* Görsel */}
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-1.5">
+                Görsel
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-20 h-20 rounded-xl bg-zinc-100 border border-zinc-200 overflow-hidden flex items-center justify-center shrink-0">
+                  {productModal.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={productModal.image_url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-2xl opacity-30">🍰</span>
+                  )}
+                </div>
+                <div className="flex-1 space-y-1.5">
+                  <label className="inline-flex items-center justify-center h-10 px-4 rounded-xl bg-white border border-zinc-300 hover:bg-zinc-50 text-sm font-semibold text-zinc-700 cursor-pointer transition">
+                    {imageUploading ? 'Yükleniyor...' : productModal.image_url ? 'Değiştir' : 'Foto Yükle'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={imageUploading}
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0]
+                        if (f) handleImagePick(f)
+                        e.target.value = ''
+                      }}
+                    />
+                  </label>
+                  {productModal.image_url && (
+                    <button
+                      type="button"
+                      onClick={() => setProductModal({ ...productModal, image_url: null })}
+                      className="block text-xs text-red-600 hover:underline"
+                    >
+                      Görseli kaldır
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <Input
               label="Ad"
-              autoFocus
               value={productModal.name}
               onChange={(e) => setProductModal({ ...productModal, name: e.target.value })}
               placeholder="Örn. Çikolatalı Pasta"

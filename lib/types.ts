@@ -23,6 +23,7 @@ export type Product = {
   price: number
   active: boolean
   sort_order: number
+  image_url: string | null
   created_at: string
 }
 
